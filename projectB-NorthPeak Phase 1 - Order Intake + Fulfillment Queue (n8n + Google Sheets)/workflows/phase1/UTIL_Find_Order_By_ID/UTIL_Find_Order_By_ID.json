@@ -1,0 +1,369 @@
+{
+  "name": "UTIL_Find_Order_By_ID",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        160
+      ],
+      "id": "90766142-84ed-491b-998c-fd57d907dbc8",
+      "name": "N02_Trigger_Manual"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "923343c0-af8a-4722-8c42-52b46e30d77c",
+              "name": "order_uid",
+              "value": "={{ $json.order_uid || (\"ord_\" + $json.channel + \"_\" + $json.external_order_id) }}",
+              "type": "string"
+            },
+            {
+              "id": "d261e6e5-2f71-45dc-8f6b-933fe4f6591f",
+              "name": "__lookup_marker",
+              "value": "={{\"request\"}}",
+              "type": "string"
+            },
+            {
+              "id": "5dc6474e-01f3-435a-8005-851d565f3169",
+              "name": "request_ts",
+              "value": "={{new Date().toISOString()}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -176,
+        16
+      ],
+      "id": "41334000-e11e-4de8-acd4-88a40f8b5330",
+      "name": "N03_Edit_EnsureOrderUID_AndMarker"
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $node[\"N03_Edit_EnsureOrderUID_AndMarker\"].json; // запрос с order_uid и маркером\nconst row = $json; // то, что пришло из Google Sheets\n\nconst isEmpty = !row || Object.keys(row).length === 0;\nconst isLookupEcho = row.__lookup_marker === \"request\";\nconst hasOrderUid = !!row.order_uid;\n\nif (isEmpty || isLookupEcho || !hasOrderUid) {\n  return [{\n    json: {\n      found: false,\n      order_uid: req.order_uid ?? null,\n      reason: \"not_found\",\n      request_ts: req.request_ts ?? new Date().toISOString()\n    }\n  }];\n}\n\n// дополнительная защита: если вдруг вернулась “не та” строка\nif (String(row.order_uid).trim() !== String(req.order_uid ?? \"\").trim()) {\n  return [{\n    json: {\n      found: false,\n      order_uid: req.order_uid ?? null,\n      reason: \"not_found\",\n      request_ts: req.request_ts ?? new Date().toISOString()\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    found: true,\n    ...row\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        16
+      ],
+      "id": "eff5a142-70e7-4fbf-a14c-d8f8627a6820",
+      "name": "N05_Code_DetectFound_Normalize"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso",
+          "mode": "list",
+          "cachedResultName": "portfolio_project2_ops_case_upgraded",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 367438380,
+          "mode": "list",
+          "cachedResultName": "12_Orders_Master",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit#gid=367438380"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "order_uid",
+              "lookupValue": "={{$json.order_uid}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        32,
+        16
+      ],
+      "id": "b9a9fb46-3b73-41aa-b671-bdd4135bf7d5",
+      "name": "N04_GSheets_Get_OrdersMaster_ByOrderUID",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yp3lyvYbootrNvoc",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f9d4ef2d-eadf-4e03-a972-6adc4dc8d9da",
+              "leftValue": "={{$json.found === true}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        432,
+        16
+      ],
+      "id": "0af6b39d-1357-47de-b7bd-2a77f6091554",
+      "name": "N06_IF_Found"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    ...$json,\n    result: \"ok\"\n  }\n}];;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        -208
+      ],
+      "id": "5f625e94-b8ac-4628-9632-7dbd4963b7df",
+      "name": "N07_Code_ReturnFound"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e7bb2f0b-0115-4737-ae76-2a393389f2d8",
+              "name": "alert_type",
+              "value": "order_not_found",
+              "type": "string"
+            },
+            {
+              "id": "8f1962c0-02f7-4f7d-bd7c-ede0dcb67f3c",
+              "name": "entity_type",
+              "value": "order",
+              "type": "string"
+            },
+            {
+              "id": "d5938726-ac8a-42dc-a9e8-1052b5d13923",
+              "name": "entity_id",
+              "value": "={{$json.order_uid}}",
+              "type": "string"
+            },
+            {
+              "id": "90b1e595-83f0-413b-be9c-0a8a3bcb4425",
+              "name": "severity",
+              "value": "high",
+              "type": "string"
+            },
+            {
+              "id": "83caf4b4-43b2-417f-85ee-6bbfc3787071",
+              "name": "message",
+              "value": "={{ \"Order not found in Orders_Master: \" + $json.order_uid }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        608,
+        144
+      ],
+      "id": "c05fa9da-a683-4908-a0a7-55f22919faa4",
+      "name": "N08_Set_AlertPayload_NotFound"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "08heTqAoPmaiZxxP",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/08heTqAoPmaiZxxP",
+          "cachedResultName": "UTIL_Send_Internal_Alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        848,
+        144
+      ],
+      "id": "dfa2f2b3-4e71-44c0-ba0e-128c7e675670",
+      "name": "N09_ExecWF_Alert_NotFound",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $node[\"N03_Edit_EnsureOrderUID_AndMarker\"].json;\n\nreturn [\n  {\n    json: {\n      found: false,\n      order_uid: req.order_uid ?? null,\n      reason: \"not_found\"\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        32
+      ],
+      "id": "dccd8da7-0e2f-429e-a928-9e5a505a79c9",
+      "name": "N10_Code_ReturnNotFound"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -368,
+        -80
+      ],
+      "id": "48524fc0-a7d2-46de-b8d7-1ccf0c6e7605",
+      "name": "N01_Trigger_ExecuteSubWF"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "N02_Trigger_Manual": {
+      "main": [
+        [
+          {
+            "node": "N03_Edit_EnsureOrderUID_AndMarker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N03_Edit_EnsureOrderUID_AndMarker": {
+      "main": [
+        [
+          {
+            "node": "N04_GSheets_Get_OrdersMaster_ByOrderUID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N05_Code_DetectFound_Normalize": {
+      "main": [
+        [
+          {
+            "node": "N06_IF_Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N04_GSheets_Get_OrdersMaster_ByOrderUID": {
+      "main": [
+        [
+          {
+            "node": "N05_Code_DetectFound_Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N06_IF_Found": {
+      "main": [
+        [
+          {
+            "node": "N07_Code_ReturnFound",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "N08_Set_AlertPayload_NotFound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N08_Set_AlertPayload_NotFound": {
+      "main": [
+        [
+          {
+            "node": "N09_ExecWF_Alert_NotFound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N09_ExecWF_Alert_NotFound": {
+      "main": [
+        [
+          {
+            "node": "N10_Code_ReturnNotFound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N01_Trigger_ExecuteSubWF": {
+      "main": [
+        [
+          {
+            "node": "N03_Edit_EnsureOrderUID_AndMarker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b15e5c8d-8d52-4645-b288-0f1e61907ffe",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd0be9b7699fc594d0067c8851217c1981aafd827ff8fde772ff3178ae64ca72"
+  },
+  "id": "OERDyJC5rTZrdHgZ",
+  "tags": []
+}

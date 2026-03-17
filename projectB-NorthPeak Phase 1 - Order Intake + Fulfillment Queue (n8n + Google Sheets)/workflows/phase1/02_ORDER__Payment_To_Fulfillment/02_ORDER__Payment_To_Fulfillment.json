@@ -1,0 +1,1023 @@
+{
+  "name": "02_ORDER__Payment_To_Fulfillment",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -448,
+        -128
+      ],
+      "id": "7e6190e1-1bf7-4d15-8184-bc8a8f684756",
+      "name": "N01_Trigger_ExecuteSubWF"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        80
+      ],
+      "id": "3770f481-7b41-4af1-8ac1-3a85c3bb786e",
+      "name": "N02_Trigger_Manual"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "OERDyJC5rTZrdHgZ",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/OERDyJC5rTZrdHgZ",
+          "cachedResultName": "UTIL_Find_Order_By_ID"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -16,
+        -16
+      ],
+      "id": "8e2a31d4-db0d-4666-a0c7-e57799b94bbb",
+      "name": "N04_ExecWF_FindOrder"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ab84bd01-6c0a-4b2f-b57e-8726c0b1c2a4",
+              "name": "order_uid",
+              "value": "={{ $json.order_uid || (\"ord_\" + $json.channel + \"_\" + $json.external_order_id) }}",
+              "type": "string"
+            },
+            {
+              "id": "1665faa9-2d1e-43a4-b014-1ee71291a764",
+              "name": "actor",
+              "value": "={{ $json.actor || \"n8n\" }}",
+              "type": "string"
+            },
+            {
+              "id": "bf5bcd25-1167-4cd8-bab2-79ee51e6d964",
+              "name": "workflow_name",
+              "value": "02_ORDER__Payment_To_Fulfillment",
+              "type": "string"
+            },
+            {
+              "id": "602c224a-c094-4e17-be0e-ab062f5b09b5",
+              "name": "request_ts",
+              "value": "={{ new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -240,
+        -16
+      ],
+      "id": "c012e9e2-1366-4886-89d5-abae75cdd226",
+      "name": "N03_Set_EnsureOrderUID_AndMeta"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c404fa24-ec22-4c72-b120-4f018bc0b78e",
+              "leftValue": "={{ $json.found === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        -16
+      ],
+      "id": "8200e8da-67ad-49fe-ab58-b3278127d3ce",
+      "name": "N05_IF_Found"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5305616d-9a90-4e09-a212-6459617cdf42",
+              "name": "alert_type",
+              "value": "order_not_found",
+              "type": "string"
+            },
+            {
+              "id": "47b142bd-6fec-4e45-a9fd-c55f5b64cd8a",
+              "name": "entity_type",
+              "value": "order",
+              "type": "string"
+            },
+            {
+              "id": "668b1f12-3a05-4d00-8c63-90e32d6d4c59",
+              "name": "entity_id",
+              "value": "={{$json.order_uid}}",
+              "type": "string"
+            },
+            {
+              "id": "e5a9c30c-05fc-4ffb-aba2-f5442c7c1300",
+              "name": "severity",
+              "value": "high",
+              "type": "string"
+            },
+            {
+              "id": "8735521e-8f26-4d16-9659-55d79019b4d7",
+              "name": "message",
+              "value": "={{\"Order not found in 12_Orders_Master: \" + ($json.order_uid || \"\")}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        416,
+        192
+      ],
+      "id": "d0af2dbb-250c-4c36-9f45-2c3319324479",
+      "name": "N05F_Set_Alert_NotFound"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f6b8b8fb-d7a4-4cc2-af29-932422f66194",
+              "name": "entity_type",
+              "value": "order",
+              "type": "string"
+            },
+            {
+              "id": "0c3d6f69-d4ba-427e-b9f4-09a813da09ce",
+              "name": "entity_id",
+              "value": "={{$json.order_uid}}",
+              "type": "string"
+            },
+            {
+              "id": "62c9222f-33bd-4599-af1e-dd789a37bcfe",
+              "name": "action",
+              "value": "payment_to_fulfillment_order_not_found",
+              "type": "string"
+            },
+            {
+              "id": "b7b663cf-9d05-4c86-b0b1-10b05ab46cba",
+              "name": "result",
+              "value": "fail",
+              "type": "string"
+            },
+            {
+              "id": "3e844578-4dbc-4a1f-84bb-ff5ab3e3c875",
+              "name": "actor",
+              "value": "={{ $json.actor || \"n8n\" }}",
+              "type": "string"
+            },
+            {
+              "id": "8da5ea45-8161-4f69-882c-694b21692059",
+              "name": "workflow_name",
+              "value": "02_ORDER__Payment_To_Fulfillment",
+              "type": "string"
+            },
+            {
+              "id": "84c186d7-935d-4a56-a7ed-7be6bad10286",
+              "name": "error_text",
+              "value": "={{ $json.reason || \"not_found\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        192
+      ],
+      "id": "78c15a81-43bc-4d03-af94-b6e4d6997eef",
+      "name": "N05F_Set_Log_NotFound"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "i5MI0OHvOlduRine",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/i5MI0OHvOlduRine",
+          "cachedResultName": "UTIL_Write_Ops_Log"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1024,
+        192
+      ],
+      "id": "5dbfca80-d635-4bcc-8072-321c3ecf0148",
+      "name": "N05F_ExecWF_Log"
+    },
+    {
+      "parameters": {
+        "jsCode": "const o = $json;\n\n// нормализация\nconst payment = String(o.payment_status || \"\").trim().toLowerCase();\nconst hold = String(o.hold_review || \"no\").trim().toLowerCase();\nconst current = String(o.current_status || \"\").trim().toLowerCase();\nconst fulfill = String(o.fulfillment_status || \"\").trim().toLowerCase();\n\nconst order_uid = o.order_uid;\nconst queue_id = \"fq_\" + order_uid;\n\n// 1) когда мы ВООБЩЕ имеем право трогать fulfillment очередь\nconst should_ensure_queue =\n  payment === \"paid\" &&\n  hold === \"no\" &&\n  ![\"cancelled\", \"refunded\"].includes(current);\n\n// 2) когда можно обновлять сам заказ до queued (только ранняя стадия)\nconst should_update_order_to_queued =\n  should_ensure_queue &&\n  [\"new\", \"paid\", \"\"].includes(current) &&\n  [\"not_started\", \"\"].includes(fulfill);\n\n// причины (для логов/алертов)\nlet skip_reason = \"\";\nif (!should_ensure_queue) {\n  if (payment !== \"paid\") skip_reason = \"skip_payment_not_paid\";\n  else if (hold !== \"no\") skip_reason = \"skip_hold_review\";\n  else if ([\"cancelled\",\"refunded\"].includes(current)) skip_reason = \"skip_order_closed_\" + current;\n  else skip_reason = \"skip_unknown\";\n}\n\nreturn [{\n  json: {\n    ...o,\n    order_uid,\n    queue_id,\n    should_ensure_queue,\n    should_update_order_to_queued,\n    skip_reason,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        -208
+      ],
+      "id": "7fe38d08-57f2-4c9a-b4e4-4221c75c70dd",
+      "name": "N06_Code_EvaluateEligibility"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9697adbe-a7b0-4fed-9b51-ba6151f021aa",
+              "leftValue": "={{ $json.should_ensure_queue === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        -208
+      ],
+      "id": "2c03380a-4616-47f4-95f3-f413850dcf25",
+      "name": "N07_IF_ShouldEnsureQueue"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "622e7a2b-781e-4eff-bf79-0c55d380bdb3",
+              "name": "entity_type",
+              "value": "order",
+              "type": "string"
+            },
+            {
+              "id": "6fba45fb-6c0e-44f7-bf67-88a865c05f72",
+              "name": "entity_id",
+              "value": "={{$json.order_uid}}",
+              "type": "string"
+            },
+            {
+              "id": "69b7a6b6-5b06-4678-bed7-602c7bdc7175",
+              "name": "action",
+              "value": "payment_to_fulfillment_skip",
+              "type": "string"
+            },
+            {
+              "id": "5ea686ab-27b2-4eb4-acff-7effb9bbbcdf",
+              "name": "result",
+              "value": "ok",
+              "type": "string"
+            },
+            {
+              "id": "c1123b9e-da5e-49fb-b9dd-6e4d7a3fc237",
+              "name": "actor",
+              "value": "={{$json.actor}}",
+              "type": "string"
+            },
+            {
+              "id": "73b46071-c667-4cae-8bfd-be139651f0dc",
+              "name": "workflow_name",
+              "value": "02_ORDER__Payment_To_Fulfillment",
+              "type": "string"
+            },
+            {
+              "id": "9215ee85-99db-4794-968a-397211e65e27",
+              "name": "error_text",
+              "value": "={{$json.skip_reason}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        -48
+      ],
+      "id": "290505b7-b15b-499e-b695-3b111b2a26f9",
+      "name": "N07F_Set_Log_Skip"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "08heTqAoPmaiZxxP",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/08heTqAoPmaiZxxP",
+          "cachedResultName": "UTIL_Send_Internal_Alert"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        192
+      ],
+      "id": "1087700f-2c57-40fd-8a05-a6596d6c0b3c",
+      "name": "N05F_ExecWF_Alert"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "i5MI0OHvOlduRine",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/i5MI0OHvOlduRine",
+          "cachedResultName": "UTIL_Write_Ops_Log"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        -48
+      ],
+      "id": "301d6001-e0b0-414b-8da0-7702a8235d43",
+      "name": "N07F_ExecWF_Log"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2cbc3e26-a223-4fe1-b7ff-7caf3d0f9ee6",
+              "name": "__lookup_marker",
+              "value": "request",
+              "type": "string"
+            },
+            {
+              "id": "2b7e68ec-0e39-4557-916b-1661edcc5e45",
+              "name": "fq_lookup_ts",
+              "value": "={{new Date().toISOString()}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        -320
+      ],
+      "id": "4f2ba4fb-5cfd-4dbf-8e34-a92355cc9baf",
+      "name": "N08_Set_FQ_LookupRequest"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Берём request из N08 и сразу делаем \"чистую\" копию\nconst reqRaw = $node[\"N08_Set_FQ_LookupRequest\"].json;\nconst req = { ...reqRaw };\ndelete req.__lookup_marker;\ndelete req.fq_lookup_ts;\n\nconst row = $json;\n\n// детектор нашли / не нашли\nconst isEmpty = !row || Object.keys(row).length === 0;\n\n// echo-item может прийти либо как request с marker,\n// либо как пустой объект {} (как у тебя на скрине)\nconst isEcho = row.__lookup_marker === \"request\" || !!row.fq_lookup_ts;\n\n// если нашли реальную строку — у неё должен быть queue_id\nconst hasQueueId = !!row.queue_id;\n\nconst found = !(isEmpty || isEcho || !hasQueueId);\n\n// дефолт для новой записи\nconst now = new Date().toISOString();\nconst base = {\n  queue_id: req.queue_id,\n  order_uid: req.order_uid,\n  queued_at: now,\n  pick_status: \"queued\",\n  pack_status: \"not_started\",\n  shipment_status: \"not_started\",\n  assigned_to: \"\",\n  cutoff_date: req.promised_ship_date || \"\",\n  exception_flag: \"no\",\n  exception_reason: \"\",\n  last_updated_at: now,\n};\n\nlet merged;\n\nif (found) {\n  // ВАЖНО: сохраняем то, что уже было в очереди (queued_at, pick_status, pack_status, shipment_status)\n  merged = {\n    ...base,\n    ...row,\n    order_uid: req.order_uid,\n    cutoff_date: row.cutoff_date || base.cutoff_date,\n    last_updated_at: now,\n  };\n} else {\n  merged = base;\n}\n\n// чистим сервисные поля, если вдруг попали из row\ndelete merged.__lookup_marker;\ndelete merged.fq_lookup_ts;\n\n// готовый payload под UTIL_Upsert_Sheet_Record\nreturn [{\n  json: {\n    ...req,\n    ...merged,\n    target_sheet: \"13_Fulfillment_Queue\",\n    fq_row_found: found,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        -320
+      ],
+      "id": "99d4a40e-c22b-491b-b5a5-141ce3a4e4a1",
+      "name": "N10_Code_BuildFQUpsertPayload"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "KBDB74IpNB2bRhLB",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/KBDB74IpNB2bRhLB",
+          "cachedResultName": "UTIL_Upsert_Sheet_Record"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1456,
+        -320
+      ],
+      "id": "d9fc5103-ef45-422e-a52e-bb0d363fbdd6",
+      "name": "N11_ExecWF_Upsert_FulfillmentQueue"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1bfe7a9d-f1b2-4a29-92ba-bfd26072e90a",
+              "leftValue": "={{ $json.should_update_order_to_queued === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1664,
+        -320
+      ],
+      "id": "04f8f6bc-bdf3-4a2e-94e3-894a7ceb4561",
+      "name": "N12_IF_ShouldUpdateOrderToQueued"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "90e6160a-5e58-403a-b467-a649875fa9ba",
+              "name": "order_uid",
+              "value": "={{$json.order_uid}}",
+              "type": "string"
+            },
+            {
+              "id": "435c970a-8734-441b-ae30-b12f4e949f9b",
+              "name": "current_status",
+              "value": "queued",
+              "type": "string"
+            },
+            {
+              "id": "6f84ba4c-0b2e-4dc9-8d9e-c8210c4c6596",
+              "name": "fulfillment_status",
+              "value": "queued",
+              "type": "string"
+            },
+            {
+              "id": "96488a81-8b77-4804-b7e0-921f54cb6679",
+              "name": "action",
+              "value": "payment_to_fulfillment",
+              "type": "string"
+            },
+            {
+              "id": "3bbc0d23-1dff-4b35-920c-ad87a6adf681",
+              "name": "actor",
+              "value": "={{$json.actor}}",
+              "type": "string"
+            },
+            {
+              "id": "169c41fc-55b3-4108-a395-5154154d7670",
+              "name": "workflow_name",
+              "value": "02_ORDER__Payment_To_Fulfillment",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1920,
+        -480
+      ],
+      "id": "4c62f768-1bb2-4cac-b6a9-a1d6b9a6892a",
+      "name": "N12T_Set_OrderPatch_Queued"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "cgqlEOdHaQqwTSTL",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/cgqlEOdHaQqwTSTL",
+          "cachedResultName": "UTIL_Update_Order_Status"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        -480
+      ],
+      "id": "fc85fd38-5935-4a17-b3b1-9f46ba38161e",
+      "name": "N12T_ExecWF_UpdateOrder"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "eb424536-5698-4f9d-b899-1bd0ed57cff8",
+              "name": "entity_type",
+              "value": "order",
+              "type": "string"
+            },
+            {
+              "id": "74de2f52-80f3-43a1-b6e0-3a20edefe704",
+              "name": "entity_id",
+              "value": "={{$json.order_uid}}",
+              "type": "string"
+            },
+            {
+              "id": "5855c8bc-7b0b-4a2b-8f03-6b7d012fa42a",
+              "name": "action",
+              "value": "={{ $json.fq_row_found ? \"payment_to_fulfillment_queue_exists\" : \"payment_to_fulfillment_queue_created\" }}",
+              "type": "string"
+            },
+            {
+              "id": "022c4514-52d1-4138-9e36-f10570a94b31",
+              "name": "result",
+              "value": "ok",
+              "type": "string"
+            },
+            {
+              "id": "e369ee68-8ccb-4318-b3ce-fa0d3b5a77f9",
+              "name": "actor",
+              "value": "={{$json.actor}}",
+              "type": "string"
+            },
+            {
+              "id": "4063d47c-25e9-4933-b367-b517f2be53f2",
+              "name": "workflow_name",
+              "value": "02_ORDER__Payment_To_Fulfillment",
+              "type": "string"
+            },
+            {
+              "id": "9bc34c73-7d3e-49f0-bbe6-caf44f6dadb5",
+              "name": "error_text",
+              "value": "={{ $json.should_update_order_to_queued ? \"\" : \"order_not_updated_to_queued (already progressed or not early stage)\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2384,
+        -304
+      ],
+      "id": "9d3f0718-9fc6-4f4b-9997-61c392ab1a37",
+      "name": "N13_Set_OpsLog_Success"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso",
+          "mode": "list",
+          "cachedResultName": "portfolio_project2_ops_case_upgraded",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 7059475,
+          "mode": "list",
+          "cachedResultName": "13_Fulfillment_Queue",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit#gid=7059475"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "queue_id",
+              "lookupValue": "={{$json.queue_id}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1040,
+        -320
+      ],
+      "id": "2d357c96-2a4c-43ed-8113-877993e9fcb2",
+      "name": "N09_GSheets_Get_FQ_ByQueueId",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yp3lyvYbootrNvoc",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "i5MI0OHvOlduRine",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/i5MI0OHvOlduRine",
+          "cachedResultName": "UTIL_Write_Ops_Log"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2624,
+        -304
+      ],
+      "id": "6a492d1c-28d1-41a0-945b-6b96a3735d35",
+      "name": "N14_ExecWF_Log_Success"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        192
+      ],
+      "id": "2f4cb2d1-7d31-47e3-8f25-a2f6365f5572",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {
+    "N02_Trigger_Manual": [
+      {
+        "json": {
+          "order_uid": "ord_web_PAID_1",
+          "actor": "manual_test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "N01_Trigger_ExecuteSubWF": {
+      "main": [
+        [
+          {
+            "node": "N03_Set_EnsureOrderUID_AndMeta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N02_Trigger_Manual": {
+      "main": [
+        [
+          {
+            "node": "N03_Set_EnsureOrderUID_AndMeta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N04_ExecWF_FindOrder": {
+      "main": [
+        [
+          {
+            "node": "N05_IF_Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N03_Set_EnsureOrderUID_AndMeta": {
+      "main": [
+        [
+          {
+            "node": "N04_ExecWF_FindOrder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N05_IF_Found": {
+      "main": [
+        [
+          {
+            "node": "N06_Code_EvaluateEligibility",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "N05F_Set_Alert_NotFound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N05F_Set_Alert_NotFound": {
+      "main": [
+        [
+          {
+            "node": "N05F_ExecWF_Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N05F_Set_Log_NotFound": {
+      "main": [
+        [
+          {
+            "node": "N05F_ExecWF_Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N06_Code_EvaluateEligibility": {
+      "main": [
+        [
+          {
+            "node": "N07_IF_ShouldEnsureQueue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N07_IF_ShouldEnsureQueue": {
+      "main": [
+        [
+          {
+            "node": "N08_Set_FQ_LookupRequest",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "N07F_Set_Log_Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N05F_ExecWF_Alert": {
+      "main": [
+        [
+          {
+            "node": "N05F_Set_Log_NotFound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N07F_Set_Log_Skip": {
+      "main": [
+        [
+          {
+            "node": "N07F_ExecWF_Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N08_Set_FQ_LookupRequest": {
+      "main": [
+        [
+          {
+            "node": "N09_GSheets_Get_FQ_ByQueueId",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N10_Code_BuildFQUpsertPayload": {
+      "main": [
+        [
+          {
+            "node": "N11_ExecWF_Upsert_FulfillmentQueue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N11_ExecWF_Upsert_FulfillmentQueue": {
+      "main": [
+        [
+          {
+            "node": "N12_IF_ShouldUpdateOrderToQueued",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N12_IF_ShouldUpdateOrderToQueued": {
+      "main": [
+        [
+          {
+            "node": "N12T_Set_OrderPatch_Queued",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "N13_Set_OpsLog_Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N12T_Set_OrderPatch_Queued": {
+      "main": [
+        [
+          {
+            "node": "N12T_ExecWF_UpdateOrder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N12T_ExecWF_UpdateOrder": {
+      "main": [
+        [
+          {
+            "node": "N13_Set_OpsLog_Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N13_Set_OpsLog_Success": {
+      "main": [
+        [
+          {
+            "node": "N14_ExecWF_Log_Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N09_GSheets_Get_FQ_ByQueueId": {
+      "main": [
+        [
+          {
+            "node": "N10_Code_BuildFQUpsertPayload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a9c1cca7-c46e-4315-b41d-847490643d87",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd0be9b7699fc594d0067c8851217c1981aafd827ff8fde772ff3178ae64ca72"
+  },
+  "id": "DpBOnTe2oO0ZYb7S",
+  "tags": []
+}

@@ -1,0 +1,275 @@
+{
+  "name": "UTIL_Write_Ops_Log",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -624,
+        -112
+      ],
+      "id": "1f5913cb-33c5-4ee6-8e25-782ed8ed8586",
+      "name": "N01_Trigger_ExecuteSubWF"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "13835562-0c4e-4b4a-9edc-88e3420e5c60",
+              "name": "log_id",
+              "value": "={{\"log_\" + $execution.id + \"_\" + Date.now()}}",
+              "type": "string"
+            },
+            {
+              "id": "e0d66d57-275d-4da2-aaa5-b4cdea0f70df",
+              "name": "timestamp",
+              "value": "={{new Date().toISOString()}}",
+              "type": "string"
+            },
+            {
+              "id": "9972fdac-3826-4117-8fcc-c70085da44cf",
+              "name": "entity_type",
+              "value": "={{$json.entity_type || \"order\"}}",
+              "type": "string"
+            },
+            {
+              "id": "b2aa39ac-d2cb-4e2a-8814-0614a304ad5f",
+              "name": "entity_id",
+              "value": "={{$json.entity_id ?? ''}}",
+              "type": "string"
+            },
+            {
+              "id": "05d9c49c-c633-4525-8f79-0aa8bd5690f0",
+              "name": "workflow_name",
+              "value": "={{$json.workflow_name || $workflow.name}}",
+              "type": "string"
+            },
+            {
+              "id": "8a96fe8d-7d59-4a78-a580-d8449d6a5e1a",
+              "name": "action",
+              "value": "={{$json.action || \"\"}}",
+              "type": "string"
+            },
+            {
+              "id": "0ad41ce3-8a1b-4760-b333-fe4c1eb71b6e",
+              "name": "result",
+              "value": "={{$json.result || \"ok\"}}",
+              "type": "string"
+            },
+            {
+              "id": "a5fdf286-7db0-4adc-b2ec-c97a961dffab",
+              "name": "actor",
+              "value": "={{$json.actor || \"n8n\"}}",
+              "type": "string"
+            },
+            {
+              "id": "3851f7ba-249e-49ae-b396-dd9647b28797",
+              "name": "error_text",
+              "value": "={{$json.error_text || \"\"}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -352,
+        -32
+      ],
+      "id": "5064a1a7-7a89-4fd4-ab42-b73cd502089e",
+      "name": "N03_Edit_DefaultLogFields"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso",
+          "mode": "list",
+          "cachedResultName": "portfolio_project2_ops_case_upgraded",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1306422073,
+          "mode": "list",
+          "cachedResultName": "19_Ops_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit#gid=1306422073"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "log_id",
+              "displayName": "log_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "entity_type",
+              "displayName": "entity_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "entity_id",
+              "displayName": "entity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result",
+              "displayName": "result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "actor",
+              "displayName": "actor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_text",
+              "displayName": "error_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -96,
+        -32
+      ],
+      "id": "14313d03-0c06-4e35-bf7f-9879c76f88a5",
+      "name": "N04_GSheets_Append_OpsLog",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yp3lyvYbootrNvoc",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        144
+      ],
+      "id": "381c4c20-51e4-48ef-b8a1-bf0e7370c705",
+      "name": "N02_Trigger_Manual"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "N01_Trigger_ExecuteSubWF": {
+      "main": [
+        [
+          {
+            "node": "N03_Edit_DefaultLogFields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N03_Edit_DefaultLogFields": {
+      "main": [
+        [
+          {
+            "node": "N04_GSheets_Append_OpsLog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N02_Trigger_Manual": {
+      "main": [
+        [
+          {
+            "node": "N03_Edit_DefaultLogFields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "8ef672dd-db09-4005-8053-3e96fd094147",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd0be9b7699fc594d0067c8851217c1981aafd827ff8fde772ff3178ae64ca72"
+  },
+  "id": "i5MI0OHvOlduRine",
+  "tags": []
+}

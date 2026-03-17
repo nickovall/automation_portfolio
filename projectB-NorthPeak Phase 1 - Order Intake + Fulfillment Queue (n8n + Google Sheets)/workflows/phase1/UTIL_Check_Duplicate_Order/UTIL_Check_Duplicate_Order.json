@@ -1,0 +1,181 @@
+{
+  "name": "UTIL_Check_Duplicate_Order",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -368,
+        -96
+      ],
+      "id": "7bb5139c-7767-458a-8c6f-fbc60a2c468f",
+      "name": "N01_Trigger_ExecuteSubWF"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -368,
+        128
+      ],
+      "id": "d1e77ada-7873-499e-b356-7005a6995a0d",
+      "name": "N02_Trigger_Manual"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "db029c10-7042-4723-9966-d5ba263c35d4",
+              "name": "order_uid",
+              "value": "={{ $json.order_uid || (\"ord_\" + $json.channel + \"_\" + $json.external_order_id) }}",
+              "type": "string"
+            },
+            {
+              "id": "8791917a-8b6e-46dc-be65-269825042d74",
+              "name": "__lookup_marker",
+              "value": "={{\"request\"}}",
+              "type": "string"
+            },
+            {
+              "id": "c2ea1cde-3794-419e-a614-ee6c2b125aa7",
+              "name": "request_ts",
+              "value": "={{new Date().toISOString()}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -96,
+        16
+      ],
+      "id": "59b66819-f90e-4985-b406-f5499c3b0475",
+      "name": "N03_Edit_EnsureOrderUID",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso",
+          "mode": "list",
+          "cachedResultName": "portfolio_project2_ops_case_upgraded",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 367438380,
+          "mode": "list",
+          "cachedResultName": "12_Orders_Master",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1EHAlJOVYV2dtTBeu8uTPg3IfnkjKSBUAwIbib5Hxeso/edit#gid=367438380"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "order_uid",
+              "lookupValue": "={{$json.order_uid}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        128,
+        16
+      ],
+      "id": "3228c0c4-e830-4567-b9b5-b370b87738de",
+      "name": "N04_GSheets_Get_OrdersMaster_ByOrderUID",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "yp3lyvYbootrNvoc",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $node[\"N03_Edit_EnsureOrderUID\"].json;\n\n\nconst rows = $input.all()\n  .map(i => i.json)\n  .filter(r => r && r.order_uid && r.__lookup_marker !== \"request\");\n\n// Ищем только среди реально найденных строк\nconst match = rows.find(r =>\n  String(r.order_uid).trim() === String(req.order_uid).trim()\n);\n\nreturn [{\n  json: {\n    ...req,\n    is_duplicate: !!match,\n    duplicate_record: match || null,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        16
+      ],
+      "id": "b468de9d-d3f1-428c-9b48-8c5bac358ad9",
+      "name": "N05_Code_DuplicateFlag",
+      "alwaysOutputData": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "N01_Trigger_ExecuteSubWF": {
+      "main": [
+        [
+          {
+            "node": "N03_Edit_EnsureOrderUID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N02_Trigger_Manual": {
+      "main": [
+        [
+          {
+            "node": "N03_Edit_EnsureOrderUID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N03_Edit_EnsureOrderUID": {
+      "main": [
+        [
+          {
+            "node": "N04_GSheets_Get_OrdersMaster_ByOrderUID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "N04_GSheets_Get_OrdersMaster_ByOrderUID": {
+      "main": [
+        [
+          {
+            "node": "N05_Code_DuplicateFlag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "09ed0a6f-1107-4f83-86bb-9184802e9fd0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd0be9b7699fc594d0067c8851217c1981aafd827ff8fde772ff3178ae64ca72"
+  },
+  "id": "8pEZDGfX6lPfws6B",
+  "tags": []
+}
