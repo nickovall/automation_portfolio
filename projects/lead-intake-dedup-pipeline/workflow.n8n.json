@@ -1,0 +1,63 @@
+{
+  "name": "Lead Intake & Dedup Pipeline - Sanitized Portfolio Blueprint",
+  "status": "sanitized_demo_export",
+  "description": "This is a public-safe workflow blueprint. Reconnect real credentials and endpoints inside n8n before use.",
+  "steps": [
+    {
+      "name": "Receive lead",
+      "kind": "webhook",
+      "input": "lead submission from form, messenger, ads, or manual import"
+    },
+    {
+      "name": "Normalize fields",
+      "kind": "code",
+      "logic": [
+        "trim name and email",
+        "lowercase email",
+        "strip non-digits from phone",
+        "build dedup key from phone first, then email"
+      ]
+    },
+    {
+      "name": "Validate contact",
+      "kind": "condition",
+      "valid_when": "phone or email exists"
+    },
+    {
+      "name": "Lookup duplicate",
+      "kind": "crm_lookup",
+      "match_fields": ["normalized_phone", "normalized_email"]
+    },
+    {
+      "name": "Create or update CRM lead",
+      "kind": "crm_upsert",
+      "behavior": "update existing lead if duplicate exists, otherwise create a new lead"
+    },
+    {
+      "name": "Append audit row",
+      "kind": "spreadsheet_log",
+      "columns": ["timestamp", "source", "dedup_key", "action", "crm_record_id", "status"]
+    },
+    {
+      "name": "Notify sales team",
+      "kind": "chat_notification",
+      "message_template": "New qualified lead: name, contact, source, CRM link"
+    },
+    {
+      "name": "Invalid lead branch",
+      "kind": "error_branch",
+      "reason": "missing phone and email"
+    }
+  ],
+  "failure_policy": {
+    "crm_timeout": "retry 3 times, then notify manager",
+    "invalid_contact": "log to invalid leads sheet",
+    "duplicate": "update instead of create",
+    "unexpected_error": "send error summary without secrets"
+  },
+  "public_safety": {
+    "contains_real_credentials": false,
+    "contains_real_endpoints": false,
+    "safe_to_publish": true
+  }
+}
