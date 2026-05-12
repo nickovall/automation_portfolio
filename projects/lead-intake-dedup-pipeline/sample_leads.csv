@@ -1,0 +1,6 @@
+created_at,source,name,phone,email,message,utm_source
+2026-01-10 09:12,landing_form,Anna Kim,+82 10-1234-5678,anna@example.com,"Need price for service package",google_ads
+2026-01-10 09:20,telegram,Anna K.,01012345678,anna@example.com,"Same user wrote again in Telegram",telegram
+2026-01-10 10:05,facebook_ads,Max Lee,+82-10-9999-1111,max.lee@example.com,"Interested in consultation",facebook
+2026-01-10 10:15,manual_import,,,+,"No valid contact data",manual
+2026-01-10 11:02,landing_form,Sergey Ivanov,,sergey@example.com,"Wants remote automation audit",seo
