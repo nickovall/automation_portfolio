@@ -1,0 +1,17 @@
+# Local secrets and machine-specific files
+.env
+.env.*
+!.env.example
+*.local
+*.local.*
+*.key
+*.pem
+*.p8
+*.jwk
+id_rsa*
+id_ed25519*
+
+# Local VPS access notes and infrastructure exports
+vps-access*.md
+*vps-access*.md
+vps_infrastructure_export/

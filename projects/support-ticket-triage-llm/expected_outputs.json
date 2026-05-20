@@ -1,0 +1,114 @@
+[
+  {
+    "ticket_id": "TCK-1001",
+    "llm_output": {
+      "category": "refund_request",
+      "priority": "high",
+      "sentiment": "angry",
+      "summary": "Customer says they were charged twice and asks for a duplicate payment refund.",
+      "routing_team": "billing",
+      "needs_human_review": true,
+      "risk_flags": ["refund", "payment_issue", "angry_customer"],
+      "draft_reply": "Thanks for reporting this. I found your note about a duplicate charge and prepared it for billing review. A team member will check the payment details before any refund action is taken.",
+      "confidence": 0.9
+    }
+  },
+  {
+    "ticket_id": "TCK-1002",
+    "llm_output": {
+      "category": "account_access",
+      "priority": "high",
+      "sentiment": "worried",
+      "summary": "Customer cannot log in after a password reset because the reset code appears expired.",
+      "routing_team": "account_support",
+      "needs_human_review": false,
+      "risk_flags": [],
+      "draft_reply": "Thanks for the details. Please try requesting a fresh password reset link and use it within the same browser session. I have routed this to account support in case the reset token needs to be checked.",
+      "confidence": 0.88
+    }
+  },
+  {
+    "ticket_id": "TCK-1003",
+    "llm_output": {
+      "category": "technical_issue",
+      "priority": "urgent",
+      "sentiment": "worried",
+      "summary": "Customer reports repeated API 500 errors for the last 20 minutes while the status page appears normal.",
+      "routing_team": "technical_support",
+      "needs_human_review": false,
+      "risk_flags": [],
+      "draft_reply": "Thanks for reporting the API errors. I have routed this to technical support with the timing you provided so they can investigate the failing requests.",
+      "confidence": 0.86
+    }
+  },
+  {
+    "ticket_id": "TCK-1004",
+    "llm_output": {
+      "category": "cancellation",
+      "priority": "high",
+      "sentiment": "neutral",
+      "summary": "Customer requests account deletion and removal of stored data.",
+      "routing_team": "support_lead",
+      "needs_human_review": true,
+      "risk_flags": ["account_deletion", "cancellation"],
+      "draft_reply": "Thanks for contacting us. I have prepared your account deletion request for human review so the team can confirm the correct process and required checks.",
+      "confidence": 0.91
+    }
+  },
+  {
+    "ticket_id": "TCK-1005",
+    "llm_output": {
+      "category": "sales_question",
+      "priority": "normal",
+      "sentiment": "neutral",
+      "summary": "Customer asks about pricing differences between starter and team plans for 12 users.",
+      "routing_team": "sales",
+      "needs_human_review": false,
+      "risk_flags": [],
+      "draft_reply": "Thanks for your interest. I have routed your pricing question to the sales team so they can explain the plan differences for a 12-user setup.",
+      "confidence": 0.92
+    }
+  },
+  {
+    "ticket_id": "TCK-1006",
+    "llm_output": {
+      "category": "complaint",
+      "priority": "urgent",
+      "sentiment": "angry",
+      "summary": "Customer is angry about an app failure during a client meeting and asks for manager contact today.",
+      "routing_team": "support_lead",
+      "needs_human_review": true,
+      "risk_flags": ["angry_customer", "manager_requested"],
+      "draft_reply": "I am sorry this happened during your client meeting. I have escalated your message for manager review today so the team can follow up with the right context.",
+      "confidence": 0.89
+    }
+  },
+  {
+    "ticket_id": "TCK-1007",
+    "llm_output": {
+      "category": "account_access",
+      "priority": "urgent",
+      "sentiment": "worried",
+      "summary": "Customer reports a suspicious login alert and asks to secure the account.",
+      "routing_team": "account_support",
+      "needs_human_review": true,
+      "risk_flags": ["security_issue"],
+      "draft_reply": "Thanks for reporting the suspicious login alert. I have escalated this for account security review. Please change your password if you can still access the account.",
+      "confidence": 0.93
+    }
+  },
+  {
+    "ticket_id": "TCK-1008",
+    "llm_output": {
+      "category": "other",
+      "priority": "normal",
+      "sentiment": "unclear",
+      "summary": "Customer says something is not working but does not provide enough detail to identify the issue.",
+      "routing_team": "support_lead",
+      "needs_human_review": true,
+      "risk_flags": ["unclear_intent", "low_llm_confidence"],
+      "draft_reply": "Thanks for reaching out. Could you share what you were trying to do, what happened, and any error message you saw? A support team member will review the details.",
+      "confidence": 0.61
+    }
+  }
+]

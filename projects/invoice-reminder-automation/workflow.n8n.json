@@ -1,0 +1,1546 @@
+{
+    "name":  "Invoice Reminder Automation - Google Sheets Demo",
+    "nodes":  [
+                  {
+                      "parameters":  {
+
+                                     },
+                      "type":  "n8n-nodes-base.manualTrigger",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1800,
+                                       0
+                                   ],
+                      "id":  "manual-trigger",
+                      "name":  "Manual Trigger"
+                  },
+                  {
+                      "parameters":  {
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "reminders_queue",
+                                                           "mode":  "name"
+                                                       },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       -1580,
+                                       0
+                                   ],
+                      "id":  "read-reminders-queue",
+                      "name":  "Read reminders_queue",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      },
+                      "alwaysOutputData":  true
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "runOnceForAllItems",
+                                         "language":  "javaScript",
+                                         "jsCode":  "const text = (value) =\u003e String(value ?? \u0027\u0027).trim();\nconst dateOnly = (value) =\u003e text(value).slice(0, 10);\nconst keys = [];\nfor (const item of items) {\n  const invoiceId = text(item.json?.invoice_id);\n  const reminderType = text(item.json?.reminder_type);\n  const createdDate = dateOnly(item.json?.created_at);\n  if (invoiceId \u0026\u0026 reminderType \u0026\u0026 createdDate) keys.push(`${invoiceId}:${reminderType}:${createdDate}`);\n}\nreturn [{ json: { existing_send_keys: [...new Set(keys)] } }];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1360,
+                                       0
+                                   ],
+                      "id":  "seed-reminder-send-context",
+                      "name":  "Seed reminder send context"
+                  },
+                  {
+                      "parameters":  {
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "invoices",
+                                                           "mode":  "name"
+                                                       },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       -1140,
+                                       0
+                                   ],
+                      "id":  "read-invoices",
+                      "name":  "Read invoices",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      },
+                      "alwaysOutputData":  true
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "runOnceForAllItems",
+                                         "language":  "javaScript",
+                                         "jsCode":  "const TEST_CASE = \u0027due_soon\u0027;\nconst cases = {\n  due_soon: { invoice_id: \u0027INV-MOCK-DUE\u0027, client_name: \u0027Mock Due Customer\u0027, client_email: \u0027mock.due@example.com\u0027, amount: 1200, currency: \u0027USD\u0027, issue_date: \u00272026-05-10\u0027, due_offset_days: 2, status: \u0027sent\u0027, reminders_sent: 0, last_reminder_at: \u0027\u0027, paid_at: \u0027\u0027, processed: \u0027FALSE\u0027 },\n  overdue: { invoice_id: \u0027INV-MOCK-OVERDUE\u0027, client_name: \u0027Mock Overdue Customer\u0027, client_email: \u0027mock.overdue@example.com\u0027, amount: 850, currency: \u0027USD\u0027, issue_date: \u00272026-04-25\u0027, due_offset_days: -3, status: \u0027overdue\u0027, reminders_sent: 1, last_reminder_at: \u00272026-05-18\u0027, paid_at: \u0027\u0027, processed: \u0027FALSE\u0027 },\n  escalation: { invoice_id: \u0027INV-MOCK-ESCALATE\u0027, client_name: \u0027Mock Escalation Customer\u0027, client_email: \u0027mock.escalate@example.com\u0027, amount: 2200, currency: \u0027USD\u0027, issue_date: \u00272026-03-28\u0027, due_offset_days: -22, status: \u0027overdue\u0027, reminders_sent: 3, last_reminder_at: \u00272026-05-15\u0027, paid_at: \u0027\u0027, processed: \u0027FALSE\u0027 },\n  invalid_contact: { invoice_id: \u0027INV-MOCK-INVALID\u0027, client_name: \u0027Mock Invalid Customer\u0027, client_email: \u0027\u0027, amount: 640, currency: \u0027USD\u0027, issue_date: \u00272026-05-01\u0027, due_offset_days: -1, status: \u0027sent\u0027, reminders_sent: 0, last_reminder_at: \u0027\u0027, paid_at: \u0027\u0027, processed: \u0027FALSE\u0027 },\n  paid: { invoice_id: \u0027INV-MOCK-PAID\u0027, client_name: \u0027Mock Paid Customer\u0027, client_email: \u0027mock.paid@example.com\u0027, amount: 430, currency: \u0027USD\u0027, issue_date: \u00272026-04-20\u0027, due_offset_days: -8, status: \u0027paid\u0027, reminders_sent: 0, last_reminder_at: \u00272026-05-05\u0027, paid_at: \u00272026-05-10\u0027, processed: \u0027FALSE\u0027 },\n  not_due: { invoice_id: \u0027INV-MOCK-NOTDUE\u0027, client_name: \u0027Mock Future Customer\u0027, client_email: \u0027mock.future@example.com\u0027, amount: 310, currency: \u0027USD\u0027, issue_date: \u00272026-05-18\u0027, due_offset_days: 16, status: \u0027sent\u0027, reminders_sent: 0, last_reminder_at: \u0027\u0027, paid_at: \u0027\u0027, processed: \u0027FALSE\u0027 }\n};\nconst selected = cases[TEST_CASE] || cases.due_soon;\nconst due = new Date();\ndue.setUTCDate(due.getUTCDate() + Number(selected.due_offset_days || 0));\nreturn [{ json: { ...selected, due_date: due.toISOString().slice(0, 10), row_number: 2 } }];"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1140,
+                                       240
+                                   ],
+                      "id":  "test-mock-invoice-input",
+                      "name":  "TEST - Mock invoice input"
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "runOnceForAllItems",
+                                         "language":  "javaScript",
+                                         "jsCode":  "const today = new Date().toISOString().slice(0, 10);\nconst todayDate = new Date(`${today}T00:00:00Z`);\nlet contextItems = [];\ntry { contextItems = $(\u0027Seed reminder send context\u0027).all(); } catch (_) { contextItems = []; }\nconst existingKeys = new Set((contextItems[0]?.json?.existing_send_keys || []).map(String));\nconst text = (value) =\u003e String(value ?? \u0027\u0027).trim();\nconst number = (value) =\u003e Number(value || 0);\nconst dateOnly = (value) =\u003e text(value).slice(0, 10);\nconst validEmail = (value) =\u003e text(value).includes(\u0027@\u0027) \u0026\u0026 text(value).includes(\u0027.\u0027);\nconst closedStatuses = new Set([\u0027paid\u0027, \u0027cancelled\u0027, \u0027void\u0027, \u0027refunded\u0027]);\nconst hasSignal = (row) =\u003e [\u0027invoice_id\u0027, \u0027due_date\u0027, \u0027client_name\u0027, \u0027client_email\u0027, \u0027amount\u0027, \u0027status\u0027].some((field) =\u003e text(row[field]));\nconst out = [];\nlet skipped = 0;\nfor (const [index, item] of items.entries()) {\n  const row = item.json || {};\n  if (!hasSignal(row)) { skipped += 1; continue; }\n  const invoiceId = text(row.invoice_id);\n  const clientName = text(row.client_name || row.customer_name);\n  const clientEmail = text(row.client_email || row.customer_email);\n  const status = text(row.status || \u0027sent\u0027).toLowerCase();\n  const dueDateText = dateOnly(row.due_date);\n  const dueDate = new Date(`${dueDateText}T00:00:00Z`);\n  const remindersSent = number(row.reminders_sent ?? row.reminder_count);\n  if (closedStatuses.has(status)) { skipped += 1; continue; }\n  const sourceRowNumber = row.row_number ?? row.rowNumber ?? row.__rowNumber ?? row._rowNumber ?? index + 2;\n  if (!invoiceId || !dueDateText || Number.isNaN(dueDate.getTime())) {\n    const reminderType = \u0027manager_review\u0027;\n    const key = `${invoiceId || \u0027missing_invoice_id\u0027}:${reminderType}:${today}`;\n    if (existingKeys.has(key)) { skipped += 1; continue; }\n    existingKeys.add(key);\n    out.push({ json: { ...row, has_work: true, processed_at: new Date().toISOString(), as_of_date: today, source_row_number: sourceRowNumber, invoice_id: invoiceId || \u0027missing_invoice_id\u0027, client_name: clientName, client_email: clientEmail, reminder_type: reminderType, needs_manager_review: true, reason: \u0027missing_invoice_id_or_due_date\u0027, queue_status: \u0027manager_review_required\u0027, previous_status: status, new_status: \u0027review_required\u0027, reminders_sent_before: remindersSent, reminders_sent_after: remindersSent, days_overdue_value: \u0027\u0027, days_to_due_value: \u0027\u0027, message: \u0027Invoice data is incomplete and must be reviewed before a reminder is prepared.\u0027, audit_message: \u0027Invoice routed to manager review: missing_invoice_id_or_due_date\u0027 } });\n    continue;\n  }\n  if (dateOnly(row.last_reminder_at) === today) { skipped += 1; continue; }\n  const diffDays = Math.ceil((dueDate.getTime() - todayDate.getTime()) / 86400000);\n  if (diffDays \u003e 3) { skipped += 1; continue; }\n  let reminderType = diffDays \u003e= 0 ? \u0027due_soon\u0027 : \u0027overdue\u0027;\n  let needsManagerReview = false;\n  let reason = diffDays \u003c 0 ? `${Math.abs(diffDays)} days overdue` : `due in ${diffDays} days`;\n  if (!validEmail(clientEmail)) { reminderType = \u0027invalid_contact\u0027; needsManagerReview = true; reason = \u0027missing_client_email\u0027; }\n  if (diffDays \u003c -14 || remindersSent \u003e= 3) { reminderType = \u0027manager_review\u0027; needsManagerReview = true; reason = \u0027severe_overdue_or_reminder_limit_reached\u0027; }\n  const key = `${invoiceId}:${reminderType}:${today}`;\n  if (existingKeys.has(key)) { skipped += 1; continue; }\n  existingKeys.add(key);\n  const amount = number(row.amount).toFixed(2);\n  const message = needsManagerReview\n    ? `Invoice ${invoiceId} requires manager review before any customer reminder is sent. Reason: ${reason}.`\n    : `Hello ${clientName || \u0027there\u0027}, this is a reminder for invoice ${invoiceId} (${text(row.currency) || \u0027USD\u0027} ${amount}) due on ${dueDateText}.`;\n  const newStatus = needsManagerReview ? (reminderType === \u0027manager_review\u0027 ? \u0027escalated\u0027 : \u0027review_required\u0027) : (diffDays \u003c 0 ? \u0027overdue\u0027 : status || \u0027sent\u0027);\n  const countAfter = needsManagerReview ? remindersSent : remindersSent + 1;\n  out.push({ json: { ...row, has_work: true, processed_at: new Date().toISOString(), as_of_date: today, source_row_number: sourceRowNumber, invoice_id: invoiceId, client_name: clientName, client_email: clientEmail, amount: number(row.amount), currency: text(row.currency || \u0027USD\u0027), due_date: dueDateText, reminder_type: reminderType, needs_manager_review: needsManagerReview, reason, queue_status: needsManagerReview ? \u0027manager_review_required\u0027 : \u0027queued_for_review\u0027, previous_status: status, new_status: newStatus, reminders_sent_before: remindersSent, reminders_sent_after: countAfter, days_overdue_value: diffDays \u003c 0 ? Math.abs(diffDays) : \u0027\u0027, days_to_due_value: diffDays \u003e= 0 ? diffDays : \u0027\u0027, message, audit_message: needsManagerReview ? `Invoice routed to manager review: ${reason}` : `Reminder draft queued: ${reminderType}` } });\n}\nif (out.length === 0) {\n  return [{ json: { has_work: false, control_event: \u0027no_invoice_reminder_work\u0027, status: \u0027ok_empty\u0027, reason: \u0027No invoices need reminders today.\u0027, checked_at: new Date().toISOString(), source_items_count: items.length, skipped_count: skipped } }];\n}\nreturn out;"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -900,
+                                       0
+                                   ],
+                      "id":  "prepare-invoice-reminder-batch",
+                      "name":  "Prepare invoice reminder batch"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "has-work-condition",
+                                                                                   "leftValue":  "={{ $json.has_work }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -660,
+                                       0
+                                   ],
+                      "id":  "if-invoices-need-reminders",
+                      "name":  "IF invoices need reminders?"
+                  },
+                  {
+                      "parameters":  {
+
+                                     },
+                      "type":  "n8n-nodes-base.noOp",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -420,
+                                       220
+                                   ],
+                      "id":  "no-invoice-reminder-work",
+                      "name":  "No invoice reminder work"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "manager-review-condition",
+                                                                                   "leftValue":  "={{ $json.needs_manager_review }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.2,
+                      "position":  [
+                                       -420,
+                                       -80
+                                   ],
+                      "id":  "if-manager-review-required",
+                      "name":  "IF manager review required"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "append",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "reminders_queue",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "created_at":  "={{ $json.processed_at }}",
+                                                                       "invoice_id":  "={{ $json.invoice_id }}",
+                                                                       "client_name":  "={{ $json.client_name }}",
+                                                                       "client_email":  "={{ $json.client_email }}",
+                                                                       "reminder_type":  "={{ $json.reminder_type }}",
+                                                                       "message":  "={{ $json.message }}",
+                                                                       "status":  "={{ $json.queue_status }}",
+                                                                       "sent_at":  "",
+                                                                       "telegram_notified":  "FALSE"
+                                                                   },
+                                                         "matchingColumns":  [
+
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "created_at",
+                                                                            "displayName":  "created_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "invoice_id",
+                                                                            "displayName":  "invoice_id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "client_name",
+                                                                            "displayName":  "client_name",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "client_email",
+                                                                            "displayName":  "client_email",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "reminder_type",
+                                                                            "displayName":  "reminder_type",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "message",
+                                                                            "displayName":  "message",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "status",
+                                                                            "displayName":  "status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "sent_at",
+                                                                            "displayName":  "sent_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "telegram_notified",
+                                                                            "displayName":  "telegram_notified",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       -180,
+                                       -220
+                                   ],
+                      "id":  "append-reminders-queue-review",
+                      "name":  "Append reminders_queue (review)",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027IF manager review required\u0027, 0);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       40,
+                                       -220
+                                   ],
+                      "id":  "restore-review-context-after-queue",
+                      "name":  "Restore review context after queue"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "append",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "reminders_queue",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "created_at":  "={{ $json.processed_at }}",
+                                                                       "invoice_id":  "={{ $json.invoice_id }}",
+                                                                       "client_name":  "={{ $json.client_name }}",
+                                                                       "client_email":  "={{ $json.client_email }}",
+                                                                       "reminder_type":  "={{ $json.reminder_type }}",
+                                                                       "message":  "={{ $json.message }}",
+                                                                       "status":  "={{ $json.queue_status }}",
+                                                                       "sent_at":  "",
+                                                                       "telegram_notified":  "FALSE"
+                                                                   },
+                                                         "matchingColumns":  [
+
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "created_at",
+                                                                            "displayName":  "created_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "invoice_id",
+                                                                            "displayName":  "invoice_id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "client_name",
+                                                                            "displayName":  "client_name",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "client_email",
+                                                                            "displayName":  "client_email",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "reminder_type",
+                                                                            "displayName":  "reminder_type",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "message",
+                                                                            "displayName":  "message",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "status",
+                                                                            "displayName":  "status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "sent_at",
+                                                                            "displayName":  "sent_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "telegram_notified",
+                                                                            "displayName":  "telegram_notified",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       -180,
+                                       60
+                                   ],
+                      "id":  "append-reminders-queue-standard",
+                      "name":  "Append reminders_queue (standard)",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027IF manager review required\u0027, 1);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       40,
+                                       60
+                                   ],
+                      "id":  "restore-standard-context-after-queue",
+                      "name":  "Restore standard context after queue"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "append",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "payment_status_log",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "timestamp":  "={{ $json.processed_at }}",
+                                                                       "invoice_id":  "={{ $json.invoice_id }}",
+                                                                       "old_status":  "={{ $json.previous_status }}",
+                                                                       "new_status":  "={{ $json.new_status }}",
+                                                                       "source":  "n8n_invoice_reminder",
+                                                                       "notes":  "={{ $json.audit_message }}"
+                                                                   },
+                                                         "matchingColumns":  [
+
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "timestamp",
+                                                                            "displayName":  "timestamp",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "invoice_id",
+                                                                            "displayName":  "invoice_id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "old_status",
+                                                                            "displayName":  "old_status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "new_status",
+                                                                            "displayName":  "new_status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "source",
+                                                                            "displayName":  "source",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "notes",
+                                                                            "displayName":  "notes",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       260,
+                                       -220
+                                   ],
+                      "id":  "append-review-payment-status-log",
+                      "name":  "Append review payment_status_log",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027Restore review context after queue\u0027);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       480,
+                                       -220
+                                   ],
+                      "id":  "restore-review-context-after-status-log",
+                      "name":  "Restore review context after status log"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "append",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "payment_status_log",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "timestamp":  "={{ $json.processed_at }}",
+                                                                       "invoice_id":  "={{ $json.invoice_id }}",
+                                                                       "old_status":  "={{ $json.previous_status }}",
+                                                                       "new_status":  "={{ $json.new_status }}",
+                                                                       "source":  "n8n_invoice_reminder",
+                                                                       "notes":  "={{ $json.audit_message }}"
+                                                                   },
+                                                         "matchingColumns":  [
+
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "timestamp",
+                                                                            "displayName":  "timestamp",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "invoice_id",
+                                                                            "displayName":  "invoice_id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "old_status",
+                                                                            "displayName":  "old_status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "new_status",
+                                                                            "displayName":  "new_status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "source",
+                                                                            "displayName":  "source",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "notes",
+                                                                            "displayName":  "notes",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       260,
+                                       60
+                                   ],
+                      "id":  "append-standard-payment-status-log",
+                      "name":  "Append standard payment_status_log",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027Restore standard context after queue\u0027);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       480,
+                                       60
+                                   ],
+                      "id":  "restore-standard-context-after-status-log",
+                      "name":  "Restore standard context after status log"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "append",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "audit_log",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "timestamp":  "={{ $json.processed_at }}",
+                                                                       "workflow_name":  "Invoice Reminder Automation",
+                                                                       "source_sheet":  "invoices",
+                                                                       "source_row":  "={{ $json.source_row_number }}",
+                                                                       "entity_id":  "={{ $json.invoice_id }}",
+                                                                       "event_type":  "invoice_reminder_decision",
+                                                                       "status":  "={{ $json.queue_status }}",
+                                                                       "message":  "={{ $json.audit_message }}"
+                                                                   },
+                                                         "matchingColumns":  [
+
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "timestamp",
+                                                                            "displayName":  "timestamp",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "workflow_name",
+                                                                            "displayName":  "workflow_name",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "source_sheet",
+                                                                            "displayName":  "source_sheet",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "source_row",
+                                                                            "displayName":  "source_row",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "entity_id",
+                                                                            "displayName":  "entity_id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "event_type",
+                                                                            "displayName":  "event_type",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "status",
+                                                                            "displayName":  "status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "message",
+                                                                            "displayName":  "message",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       700,
+                                       -220
+                                   ],
+                      "id":  "append-review-audit-log",
+                      "name":  "Append review audit_log",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027Restore review context after status log\u0027);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       920,
+                                       -220
+                                   ],
+                      "id":  "restore-review-context-after-audit",
+                      "name":  "Restore review context after audit"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "append",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "audit_log",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "timestamp":  "={{ $json.processed_at }}",
+                                                                       "workflow_name":  "Invoice Reminder Automation",
+                                                                       "source_sheet":  "invoices",
+                                                                       "source_row":  "={{ $json.source_row_number }}",
+                                                                       "entity_id":  "={{ $json.invoice_id }}",
+                                                                       "event_type":  "invoice_reminder_decision",
+                                                                       "status":  "={{ $json.queue_status }}",
+                                                                       "message":  "={{ $json.audit_message }}"
+                                                                   },
+                                                         "matchingColumns":  [
+
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "timestamp",
+                                                                            "displayName":  "timestamp",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "workflow_name",
+                                                                            "displayName":  "workflow_name",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "source_sheet",
+                                                                            "displayName":  "source_sheet",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "source_row",
+                                                                            "displayName":  "source_row",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "entity_id",
+                                                                            "displayName":  "entity_id",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "event_type",
+                                                                            "displayName":  "event_type",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "status",
+                                                                            "displayName":  "status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "message",
+                                                                            "displayName":  "message",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       700,
+                                       60
+                                   ],
+                      "id":  "append-standard-audit-log",
+                      "name":  "Append standard audit_log",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027Restore standard context after status log\u0027);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       920,
+                                       60
+                                   ],
+                      "id":  "restore-standard-context-after-audit",
+                      "name":  "Restore standard context after audit"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "update",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "invoices",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "row_number":  "={{ $json.source_row_number }}",
+                                                                       "status":  "={{ $json.new_status }}",
+                                                                       "reminders_sent":  "={{ $json.reminders_sent_after }}",
+                                                                       "last_reminder_at":  "={{ $json.as_of_date }}",
+                                                                       "days_overdue":  "={{ $json.days_overdue_value }}",
+                                                                       "days_to_due":  "={{ $json.days_to_due_value }}"
+                                                                   },
+                                                         "matchingColumns":  [
+                                                                                 "row_number"
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "row_number",
+                                                                            "displayName":  "row_number",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  true,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "status",
+                                                                            "displayName":  "status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "reminders_sent",
+                                                                            "displayName":  "reminders_sent",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "last_reminder_at",
+                                                                            "displayName":  "last_reminder_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "days_overdue",
+                                                                            "displayName":  "days_overdue",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "days_to_due",
+                                                                            "displayName":  "days_to_due",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       1140,
+                                       -220
+                                   ],
+                      "id":  "update-review-invoices-reminder-metadata",
+                      "name":  "Update review invoices reminder metadata",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027Restore review context after audit\u0027);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1360,
+                                       -220
+                                   ],
+                      "id":  "restore-review-context-after-update",
+                      "name":  "Restore review context after update"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "update",
+                                         "documentId":  {
+                                                            "__rl":  true,
+                                                            "value":  "INVOICE_REMINDER_SPREADSHEET_LOCATOR",
+                                                            "mode":  "list",
+                                                            "cachedResultName":  "invoice_reminders"
+                                                        },
+                                         "sheetName":  {
+                                                           "__rl":  true,
+                                                           "value":  "invoices",
+                                                           "mode":  "name"
+                                                       },
+                                         "columns":  {
+                                                         "mappingMode":  "defineBelow",
+                                                         "value":  {
+                                                                       "row_number":  "={{ $json.source_row_number }}",
+                                                                       "status":  "={{ $json.new_status }}",
+                                                                       "reminders_sent":  "={{ $json.reminders_sent_after }}",
+                                                                       "last_reminder_at":  "={{ $json.as_of_date }}",
+                                                                       "days_overdue":  "={{ $json.days_overdue_value }}",
+                                                                       "days_to_due":  "={{ $json.days_to_due_value }}"
+                                                                   },
+                                                         "matchingColumns":  [
+                                                                                 "row_number"
+                                                                             ],
+                                                         "schema":  [
+                                                                        {
+                                                                            "id":  "row_number",
+                                                                            "displayName":  "row_number",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  true,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  true
+                                                                        },
+                                                                        {
+                                                                            "id":  "status",
+                                                                            "displayName":  "status",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "reminders_sent",
+                                                                            "displayName":  "reminders_sent",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "last_reminder_at",
+                                                                            "displayName":  "last_reminder_at",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "days_overdue",
+                                                                            "displayName":  "days_overdue",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        },
+                                                                        {
+                                                                            "id":  "days_to_due",
+                                                                            "displayName":  "days_to_due",
+                                                                            "required":  false,
+                                                                            "defaultMatch":  false,
+                                                                            "display":  true,
+                                                                            "type":  "string",
+                                                                            "canBeUsedToMatch":  false
+                                                                        }
+                                                                    ],
+                                                         "attemptToConvertTypes":  false,
+                                                         "convertFieldsToString":  false
+                                                     },
+                                         "options":  {
+                                                         "cellFormat":  "RAW"
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.googleSheets",
+                      "typeVersion":  4.7,
+                      "position":  [
+                                       1140,
+                                       60
+                                   ],
+                      "id":  "update-standard-invoices-reminder-metadata",
+                      "name":  "Update standard invoices reminder metadata",
+                      "credentials":  {
+                                          "googleSheetsOAuth2Api":  {
+                                                                        "id":  "CRED_ID",
+                                                                        "name":  "GSHEETS_PORTFOLIO_AUTOMATION"
+                                                                    }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const sourceItems = $items(\u0027Restore standard context after audit\u0027);\nreturn items.map((item, index) =\u003e ({ json: sourceItems[index]?.json || item.json }));"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1360,
+                                       60
+                                   ],
+                      "id":  "restore-standard-context-after-update",
+                      "name":  "Restore standard context after update"
+                  },
+                  {
+                      "parameters":  {
+                                         "content":  "Sanitized portfolio demo. Customer emails are not sent directly. The workflow prepares reminder drafts in reminders_queue, routes risky cases to manager review, and keeps credential IDs as CRED_ID placeholders.",
+                                         "height":  220,
+                                         "width":  420
+                                     },
+                      "type":  "n8n-nodes-base.stickyNote",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1360,
+                                       -420
+                                   ],
+                      "id":  "invoice-demo-note",
+                      "name":  "Invoice demo note"
+                  }
+              ],
+    "connections":  {
+                        "Manual Trigger":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Read reminders_queue",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Read reminders_queue":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Seed reminder send context",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Seed reminder send context":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "Read invoices",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                        "Read invoices":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Prepare invoice reminder batch",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "TEST - Mock invoice input":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Prepare invoice reminder batch",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "Prepare invoice reminder batch":  {
+                                                               "main":  [
+                                                                            [
+                                                                                {
+                                                                                    "node":  "IF invoices need reminders?",
+                                                                                    "type":  "main",
+                                                                                    "index":  0
+                                                                                }
+                                                                            ]
+                                                                        ]
+                                                           },
+                        "IF invoices need reminders?":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "IF manager review required",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ],
+                                                                         [
+                                                                             {
+                                                                                 "node":  "No invoice reminder work",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                        "IF manager review required":  {
+                                                           "main":  [
+                                                                        [
+                                                                            {
+                                                                                "node":  "Append reminders_queue (review)",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ],
+                                                                        [
+                                                                            {
+                                                                                "node":  "Append reminders_queue (standard)",
+                                                                                "type":  "main",
+                                                                                "index":  0
+                                                                            }
+                                                                        ]
+                                                                    ]
+                                                       },
+                        "Append reminders_queue (review)":  {
+                                                                "main":  [
+                                                                             [
+                                                                                 {
+                                                                                     "node":  "Restore review context after queue",
+                                                                                     "type":  "main",
+                                                                                     "index":  0
+                                                                                 }
+                                                                             ]
+                                                                         ]
+                                                            },
+                        "Restore review context after queue":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Append review payment_status_log",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                        "Append review payment_status_log":  {
+                                                                 "main":  [
+                                                                              [
+                                                                                  {
+                                                                                      "node":  "Restore review context after status log",
+                                                                                      "type":  "main",
+                                                                                      "index":  0
+                                                                                  }
+                                                                              ]
+                                                                          ]
+                                                             },
+                        "Restore review context after status log":  {
+                                                                        "main":  [
+                                                                                     [
+                                                                                         {
+                                                                                             "node":  "Append review audit_log",
+                                                                                             "type":  "main",
+                                                                                             "index":  0
+                                                                                         }
+                                                                                     ]
+                                                                                 ]
+                                                                    },
+                        "Append review audit_log":  {
+                                                        "main":  [
+                                                                     [
+                                                                         {
+                                                                             "node":  "Restore review context after audit",
+                                                                             "type":  "main",
+                                                                             "index":  0
+                                                                         }
+                                                                     ]
+                                                                 ]
+                                                    },
+                        "Restore review context after audit":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Update review invoices reminder metadata",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                        "Update review invoices reminder metadata":  {
+                                                                         "main":  [
+                                                                                      [
+                                                                                          {
+                                                                                              "node":  "Restore review context after update",
+                                                                                              "type":  "main",
+                                                                                              "index":  0
+                                                                                          }
+                                                                                      ]
+                                                                                  ]
+                                                                     },
+                        "Append reminders_queue (standard)":  {
+                                                                  "main":  [
+                                                                               [
+                                                                                   {
+                                                                                       "node":  "Restore standard context after queue",
+                                                                                       "type":  "main",
+                                                                                       "index":  0
+                                                                                   }
+                                                                               ]
+                                                                           ]
+                                                              },
+                        "Restore standard context after queue":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Append standard payment_status_log",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 },
+                        "Append standard payment_status_log":  {
+                                                                   "main":  [
+                                                                                [
+                                                                                    {
+                                                                                        "node":  "Restore standard context after status log",
+                                                                                        "type":  "main",
+                                                                                        "index":  0
+                                                                                    }
+                                                                                ]
+                                                                            ]
+                                                               },
+                        "Restore standard context after status log":  {
+                                                                          "main":  [
+                                                                                       [
+                                                                                           {
+                                                                                               "node":  "Append standard audit_log",
+                                                                                               "type":  "main",
+                                                                                               "index":  0
+                                                                                           }
+                                                                                       ]
+                                                                                   ]
+                                                                      },
+                        "Append standard audit_log":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "Restore standard context after audit",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "Restore standard context after audit":  {
+                                                                     "main":  [
+                                                                                  [
+                                                                                      {
+                                                                                          "node":  "Update standard invoices reminder metadata",
+                                                                                          "type":  "main",
+                                                                                          "index":  0
+                                                                                      }
+                                                                                  ]
+                                                                              ]
+                                                                 },
+                        "Update standard invoices reminder metadata":  {
+                                                                           "main":  [
+                                                                                        [
+                                                                                            {
+                                                                                                "node":  "Restore standard context after update",
+                                                                                                "type":  "main",
+                                                                                                "index":  0
+                                                                                            }
+                                                                                        ]
+                                                                                    ]
+                                                                       }
+                    },
+    "pinData":  {
+
+                },
+    "active":  false,
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "binaryMode":  "separate"
+                 },
+    "versionId":  "SANITIZED_PORTFOLIO_DEMO",
+    "meta":  {
+                 "templateCredsSetupCompleted":  false,
+                 "sanitized":  true,
+                 "notes":  "Credential IDs, sheet IDs, email API keys, chat IDs, and private values are placeholders. Reconnect credentials manually before testing."
+             },
+    "tags":  [
+
+             ]
+}

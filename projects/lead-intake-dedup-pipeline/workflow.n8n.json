@@ -1,63 +1,1792 @@
 {
-  "name": "Lead Intake & Dedup Pipeline - Sanitized Portfolio Blueprint",
-  "status": "sanitized_demo_export",
-  "description": "This is a public-safe workflow blueprint. Reconnect real credentials and endpoints inside n8n before use.",
-  "steps": [
+  "name": "Lead Intake & Dedup Pipeline - Google Sheets Demo",
+  "nodes": [
     {
-      "name": "Receive lead",
-      "kind": "webhook",
-      "input": "lead submission from form, messenger, ads, or manual import"
-    },
-    {
-      "name": "Normalize fields",
-      "kind": "code",
-      "logic": [
-        "trim name and email",
-        "lowercase email",
-        "strip non-digits from phone",
-        "build dedup key from phone first, then email"
+      "parameters": {},
+      "id": "d83ef957-d199-458b-9b2d-8af2dd64e340",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        112,
+        304
       ]
     },
     {
-      "name": "Validate contact",
-      "kind": "condition",
-      "valid_when": "phone or email exists"
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "valid_leads",
+          "cachedResultName": "valid_leads"
+        },
+        "options": {}
+      },
+      "id": "1af34049-2a1c-43f4-be86-f327aff3f3f6",
+      "name": "Read valid_leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        304,
+        304
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
     },
     {
-      "name": "Lookup duplicate",
-      "kind": "crm_lookup",
-      "match_fields": ["normalized_phone", "normalized_email"]
+      "parameters": {
+        "jsCode": "const rows = items\n  .map((item) => item.json || {})\n  .filter((row) => Object.keys(row).length > 0 && (row.lead_id || row.dedup_key || row.phone || row.email));\n\nreturn [{\n  json: {\n    valid_leads: rows,\n    valid_leads_count: rows.length,\n  },\n}];"
+      },
+      "id": "b5b68f12-ea53-47de-bc58-1c2a744cf0d1",
+      "name": "Seed valid context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        304
+      ]
     },
     {
-      "name": "Create or update CRM lead",
-      "kind": "crm_upsert",
-      "behavior": "update existing lead if duplicate exists, otherwise create a new lead"
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "incoming_leads",
+          "cachedResultName": "incoming_leads"
+        },
+        "options": {}
+      },
+      "id": "7567924d-84ae-44f1-af85-df42598ee7e5",
+      "name": "Read incoming_leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        704,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
     },
     {
-      "name": "Append audit row",
-      "kind": "spreadsheet_log",
-      "columns": ["timestamp", "source", "dedup_key", "action", "crm_record_id", "status"]
+      "parameters": {
+        "jsCode": "const isProcessed = (value) => {\n  if (value === true) return true;\n  const normalized = String(value ?? '').trim().toLowerCase();\n  return ['true', 'yes', '1', 'processed', 'done'].includes(normalized);\n};\n\nconst text = (value) => String(value ?? '').trim();\nconst email = (value) => text(value).toLowerCase();\nconst phone = (value) => text(value).replace(/\\D/g, '');\nconst validEmail = (value) => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(value);\nconst nowIso = () => new Date().toISOString();\nconst safeId = (value) => String(value).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 64);\nconst telegramSafe = (value) => text(value)\n  .replace(/&/g, 'and')\n  .replace(/[<>]/g, '')\n  .replace(/[_*`\\[\\]()~>#+\\-=|{}.!]/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst incoming = $items('Read incoming_leads').map((item, index) => ({\n  ...item.json,\n  _source_row_number: item.json.row_number ?? item.json.rowNumber ?? item.json.__rowNumber ?? item.json._rowNumber ?? index + 2,\n}));\n\nconst seedItems = $items('Seed valid context');\nconst existing = seedItems.length ? (seedItems[0].json.valid_leads || []) : [];\nconst seenByContact = new Map();\n\nconst addSeen = (key, lead) => {\n  if (key && !seenByContact.has(key)) seenByContact.set(key, lead);\n};\n\nfor (const row of existing) {\n  const normalizedPhone = phone(row.phone_normalized || row.phone);\n  const normalizedEmail = email(row.email_normalized || row.email);\n  const primaryKey = text(row.dedup_key);\n  const lead = {\n    lead_id: text(row.lead_id),\n    dedup_key: primaryKey,\n    source: text(row.source),\n    name: text(row.name),\n    email: text(row.email || row.email_normalized),\n    phone: text(row.phone || row.phone_normalized),\n  };\n  addSeen(primaryKey, lead);\n  addSeen(normalizedPhone.length >= 7 ? `phone:${normalizedPhone}` : '', lead);\n  addSeen(validEmail(normalizedEmail) ? `email:${normalizedEmail}` : '', lead);\n}\n\nconst output = [];\n\nfor (const row of incoming) {\n  if (isProcessed(row.processed)) continue;\n\n  const createdAt = text(row.created_at);\n  const source = text(row.source);\n  const name = text(row.name);\n  const rawPhone = text(row.phone);\n  const rawEmail = text(row.email);\n  const message = text(row.message);\n  const utmSource = text(row.utm_source);\n  const normalizedPhone = phone(rawPhone);\n  const normalizedEmail = email(rawEmail);\n  const phoneOk = normalizedPhone.length >= 7;\n  const emailOk = normalizedEmail ? validEmail(normalizedEmail) : false;\n  const phoneKey = phoneOk ? `phone:${normalizedPhone}` : '';\n  const emailKey = emailOk ? `email:${normalizedEmail}` : '';\n\n  const errors = [];\n  if (!createdAt) errors.push('missing_created_at');\n  if (!source) errors.push('missing_source');\n  if (!phoneOk && !emailOk) errors.push('missing_or_invalid_contact');\n\n  const dedupKey = phoneKey || emailKey;\n  const processedAt = nowIso();\n  const phoneMatch = phoneKey ? seenByContact.get(phoneKey) : null;\n  const emailMatch = emailKey ? seenByContact.get(emailKey) : null;\n  const match = phoneMatch || emailMatch || null;\n  const isValid = errors.length === 0;\n  const isDuplicate = isValid && Boolean(match);\n  const leadId = isDuplicate ? match.lead_id : dedupKey ? `demo_${safeId(dedupKey)}` : '';\n\n  let action = 'valid_lead_created';\n  let status = 'valid';\n  let auditMessage = 'New valid lead appended';\n  let notes = 'New valid lead';\n  let errorReason = '';\n  let duplicateReason = '';\n  let matchedLeadId = '';\n\n  if (!isValid) {\n    action = 'invalid_lead';\n    status = 'invalid';\n    auditMessage = 'Lead did not pass validation';\n    errorReason = errors.join(', ');\n    notes = errorReason;\n  } else if (isDuplicate) {\n    action = 'duplicate_detected';\n    status = 'duplicate';\n    auditMessage = 'Duplicate lead logged';\n    duplicateReason = match.dedup_key === dedupKey ? 'dedup_key_exists_in_valid_leads_or_current_batch' : 'alternate_contact_key_exists_in_valid_leads_or_current_batch';\n    matchedLeadId = match.lead_id;\n    notes = 'Duplicate lead detected';\n  } else {\n    const lead = { lead_id: leadId, dedup_key: dedupKey, source, name, email: rawEmail, phone: rawPhone };\n    addSeen(dedupKey, lead);\n    addSeen(phoneKey, lead);\n    addSeen(emailKey, lead);\n  }\n\n  const rawPayload = JSON.stringify({ created_at: createdAt, source, name, phone: rawPhone, email: rawEmail, message, utm_source: utmSource });\n\n  output.push({\n    json: {\n      source_row_number: row._source_row_number,\n      processed_at: processedAt,\n      created_at: createdAt,\n      source,\n      name,\n      phone: rawPhone,\n      email: rawEmail,\n      phone_normalized: normalizedPhone,\n      email_normalized: normalizedEmail,\n      message,\n      utm_source: utmSource,\n      raw_payload: rawPayload,\n      dedup_key: dedupKey,\n      lead_id: leadId,\n      is_invalid: !isValid,\n      is_duplicate: isDuplicate,\n      matched_lead_id: matchedLeadId,\n      duplicate_reason: duplicateReason,\n      action,\n      status,\n      notes,\n      error_reason: errorReason,\n      audit_message: auditMessage,\n      telegram_new_message: `New qualified lead\\nName: ${telegramSafe(name) || 'not provided'}\\nContact: ${telegramSafe(normalizedPhone) || 'no phone'} / ${telegramSafe(normalizedEmail) || 'no email'}\\nSource: ${telegramSafe(source) || 'unknown'}\\nUTM: ${telegramSafe(utmSource) || 'none'}\\nAction: added to valid leads`,\n      telegram_duplicate_message: `Duplicate lead detected\\nName: ${telegramSafe(name) || 'not provided'}\\nDedup key: ${telegramSafe(dedupKey) || 'none'}\\nMatched lead: ${telegramSafe(matchedLeadId) || 'unknown'}\\nAction: logged to duplicates`,\n      telegram_invalid_message: `Invalid lead\\nSource: ${telegramSafe(source) || 'unknown'}\\nName: ${telegramSafe(name) || 'not provided'}\\nReason: ${telegramSafe(errorReason) || 'unknown'}\\nAction: logged to invalid leads`,\n    },\n  });\n}\n\nreturn output;"
+      },
+      "id": "509202f5-ab2a-4b08-a227-ba9ed5380b3e",
+      "name": "Process lead batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        304
+      ]
     },
     {
-      "name": "Notify sales team",
-      "kind": "chat_notification",
-      "message_template": "New qualified lead: name, contact, source, CRM link"
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-invalid-condition",
+              "leftValue": "={{ $json.is_invalid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "775c0550-9256-4d3c-9c1f-4316e3b155f1",
+      "name": "IF invalid lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1104,
+        304
+      ]
     },
     {
-      "name": "Invalid lead branch",
-      "kind": "error_branch",
-      "reason": "missing phone and email"
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "invalid_leads",
+          "cachedResultName": "invalid_leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "processed_at": "={{ $json.processed_at }}",
+            "source": "={{ $json.source }}",
+            "name": "={{ $json.name }}",
+            "phone": "={{ $json.phone }}",
+            "email": "={{ $json.email }}",
+            "reason": "={{ $json.error_reason }}",
+            "raw_payload": "={{ $json.raw_payload }}",
+            "source_row": "={{ $json.source_row_number }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "raw_payload",
+              "displayName": "raw_payload",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "d543d7de-964f-49be-bcd2-accc5ad36569",
+      "name": "Append invalid_leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        96,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF invalid lead', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "57fe4fc5-b68c-423d-b7a7-c6b5d287e064",
+      "name": "Restore invalid context after append",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "audit_log",
+          "cachedResultName": "audit_log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.processed_at }}",
+            "workflow_name": "Lead Intake & Dedup Pipeline",
+            "source_sheet": "incoming_leads",
+            "source_row": "={{ $json.source_row_number }}",
+            "entity_id": "",
+            "event_type": "invalid_lead",
+            "status": "invalid",
+            "message": "={{ $json.error_reason || 'Lead did not pass validation' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_sheet",
+              "displayName": "source_sheet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "entity_id",
+              "displayName": "entity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "27fd4331-0c4f-4e78-8f04-7fdd1fc6e4b7",
+      "name": "Append invalid audit_log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        496,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF invalid lead', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "4664627e-9b99-438a-b025-d25b648ae064",
+      "name": "Restore invalid context after audit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "incoming_leads",
+          "cachedResultName": "incoming_leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.source_row_number }}",
+            "status": "invalid",
+            "processed": "TRUE",
+            "lead_id": "",
+            "dedup_key": "={{ $json.dedup_key }}",
+            "notes": "={{ $json.error_reason }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "processed",
+              "displayName": "processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "dedup_key",
+              "displayName": "dedup_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "79e08ae7-a6c8-4405-89a3-f302ce5e76dd",
+      "name": "Mark invalid processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        896,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF invalid lead', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "54690d34-a9bc-45db-80e6-387f05abae8a",
+      "name": "Restore invalid context after update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.LEADGATE_CHAT_ID }}",
+        "text": "={{ $json.telegram_invalid_message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disableWebPagePreview": true
+        }
+      },
+      "id": "301731e0-35fc-441a-91cc-4348ab712b16",
+      "name": "Telegram invalid alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        112
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "CRED_ID",
+          "name": "TG_PORTFOLIO_LEADGATE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "is-duplicate-condition",
+              "leftValue": "={{ $json.is_duplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "872fd4d6-b1ba-4703-b21a-d1eddac67c44",
+      "name": "IF duplicate lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -112,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "duplicates",
+          "cachedResultName": "duplicates"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "processed_at": "={{ $json.processed_at }}",
+            "dedup_key": "={{ $json.dedup_key }}",
+            "existing_lead_id": "={{ $json.matched_lead_id }}",
+            "new_source": "={{ $json.source }}",
+            "action": "duplicate_detected",
+            "source_row": "={{ $json.source_row_number }}",
+            "notes": "={{ $json.duplicate_reason || $json.notes }}",
+            "telegram_notified": "attempted"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "dedup_key",
+              "displayName": "dedup_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "existing_lead_id",
+              "displayName": "existing_lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "new_source",
+              "displayName": "new_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "telegram_notified",
+              "displayName": "telegram_notified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "25a4e4a7-5aa6-4aca-9e45-bdec8b040d49",
+      "name": "Append duplicates",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        96,
+        576
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF duplicate lead', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "a6e4f814-9213-45d6-a47a-3771df690c5c",
+      "name": "Restore duplicate context after append",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "audit_log",
+          "cachedResultName": "audit_log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.processed_at }}",
+            "workflow_name": "Lead Intake & Dedup Pipeline",
+            "source_sheet": "incoming_leads",
+            "source_row": "={{ $json.source_row_number }}",
+            "entity_id": "={{ $json.matched_lead_id }}",
+            "event_type": "duplicate_detected",
+            "status": "duplicate",
+            "message": "={{ $json.duplicate_reason || 'Duplicate lead logged' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_sheet",
+              "displayName": "source_sheet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "entity_id",
+              "displayName": "entity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "877e5bc2-0f4f-450e-953f-8db602ef8881",
+      "name": "Append duplicate audit_log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        496,
+        576
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF duplicate lead', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "a1b5ed77-52c6-4cef-b9af-09b557224123",
+      "name": "Restore duplicate context after audit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "incoming_leads",
+          "cachedResultName": "incoming_leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.source_row_number }}",
+            "status": "duplicate",
+            "processed": "TRUE",
+            "lead_id": "={{ $json.matched_lead_id }}",
+            "dedup_key": "={{ $json.dedup_key }}",
+            "notes": "={{ $json.duplicate_reason || $json.notes }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "processed",
+              "displayName": "processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "dedup_key",
+              "displayName": "dedup_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "54856313-38c4-4cbc-ab64-9b72b32843ea",
+      "name": "Mark duplicate processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        896,
+        576
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF duplicate lead', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "ed8e8a5a-c866-4b5f-8977-7e82e4a3dc54",
+      "name": "Restore duplicate context after update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.LEADGATE_CHAT_ID }}",
+        "text": "={{ $json.telegram_duplicate_message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disableWebPagePreview": true
+        }
+      },
+      "id": "233af086-3ea8-439b-844e-e781eb0fd2ea",
+      "name": "Telegram duplicate alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        576
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "CRED_ID",
+          "name": "TG_PORTFOLIO_LEADGATE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "valid_leads",
+          "cachedResultName": "valid_leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "processed_at": "={{ $json.processed_at }}",
+            "lead_id": "={{ $json.lead_id }}",
+            "source": "={{ $json.source }}",
+            "name": "={{ $json.name }}",
+            "phone_normalized": "={{ $json.phone_normalized }}",
+            "email_normalized": "={{ $json.email_normalized }}",
+            "message": "={{ $json.message }}",
+            "utm_source": "={{ $json.utm_source }}",
+            "status": "valid",
+            "dedup_key": "={{ $json.dedup_key }}",
+            "source_row": "={{ $json.source_row_number }}",
+            "telegram_notified": "attempted"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "phone_normalized",
+              "displayName": "phone_normalized",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "email_normalized",
+              "displayName": "email_normalized",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "utm_source",
+              "displayName": "utm_source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "dedup_key",
+              "displayName": "dedup_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "telegram_notified",
+              "displayName": "telegram_notified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "28e033b9-e024-41f7-951e-a58ee334ee4a",
+      "name": "Append valid_leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        80,
+        848
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF duplicate lead', 1);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "e74961e2-c6d2-4364-8cfc-55c281ffda3a",
+      "name": "Restore valid context after append",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "audit_log",
+          "cachedResultName": "audit_log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.processed_at }}",
+            "workflow_name": "Lead Intake & Dedup Pipeline",
+            "source_sheet": "incoming_leads",
+            "source_row": "={{ $json.source_row_number }}",
+            "entity_id": "={{ $json.lead_id }}",
+            "event_type": "valid_lead_created",
+            "status": "valid",
+            "message": "New valid lead appended"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_sheet",
+              "displayName": "source_sheet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "entity_id",
+              "displayName": "entity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "7ae6b5e2-e00a-46c9-a183-e51ba06562e2",
+      "name": "Append valid audit_log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        480,
+        848
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF duplicate lead', 1);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "a2641dce-037e-4110-bb83-cadeb6fa8c12",
+      "name": "Restore valid context after audit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "lead_intake",
+          "mode": "list",
+          "cachedResultName": "lead_intake"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "incoming_leads",
+          "cachedResultName": "incoming_leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.source_row_number }}",
+            "status": "valid",
+            "processed": "TRUE",
+            "lead_id": "={{ $json.lead_id }}",
+            "dedup_key": "={{ $json.dedup_key }}",
+            "notes": "New valid lead"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "processed",
+              "displayName": "processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "lead_id",
+              "displayName": "lead_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "dedup_key",
+              "displayName": "dedup_key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "30b136d5-0dca-41cc-a157-bbb4ab6b88cd",
+      "name": "Mark valid processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        848
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF duplicate lead', 1);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "id": "b6c7a8f3-8ed9-4029-9a21-bb248eb5e576",
+      "name": "Restore valid context after update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.LEADGATE_CHAT_ID }}",
+        "text": "={{ $json.telegram_new_message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "disableWebPagePreview": true
+        }
+      },
+      "id": "130db0f4-06b4-4961-a3e0-814e24b2f7e4",
+      "name": "Telegram new lead alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1280,
+        848
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "CRED_ID",
+          "name": "TG_PORTFOLIO_LEADGATE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Change this value to test another branch: 'invalid', 'duplicate', or 'valid'.\nconst TEST_CASE = 'invalid';\n\nconst now = new Date().toISOString();\nconst telegramSafe = (value) => String(value ?? '')\n  .replace(/[\\u0000-\\u001F\\u007F]/g, ' ')\n  .replace(/[<>*_`\\[\\]()~#+\\-=|{}.!]/g, ' ')\n  .replace(/\\s+/g, ' ')\n  .trim();\n\nconst base = {\n  source_row_number: 2,\n  processed_at: now,\n  created_at: '2026-05-19 14:30',\n  source: 'mock_node',\n  name: 'Mock Lead',\n  phone: '+1 555 010 2001',\n  email: 'mock.lead@example.com',\n  phone_normalized: '15550102001',\n  email_normalized: 'mock.lead@example.com',\n  message: 'Manual branch test from mock node',\n  raw_payload: 'mock test payload',\n  utm_source: 'codex_test',\n};\n\nconst cases = {\n  invalid: {\n    ...base,\n    name: 'No Contact Lead',\n    phone: '',\n    email: '',\n    phone_normalized: '',\n    email_normalized: '',\n    dedup_key: '',\n    lead_id: '',\n    is_invalid: true,\n    is_duplicate: false,\n    matched_lead_id: '',\n    duplicate_reason: '',\n    action: 'invalid_lead',\n    status: 'invalid',\n    notes: 'missing_or_invalid_contact',\n    error_reason: 'missing_or_invalid_contact',\n    audit_message: 'Lead did not pass validation',\n  },\n  duplicate: {\n    ...base,\n    name: 'Duplicate Mock Lead',\n    dedup_key: 'phone:15550102001',\n    lead_id: 'demo_phone_15550102001',\n    is_invalid: false,\n    is_duplicate: true,\n    matched_lead_id: 'demo_phone_15550102001',\n    duplicate_reason: 'mock_duplicate_branch_test',\n    action: 'duplicate_detected',\n    status: 'duplicate',\n    notes: 'Duplicate lead detected',\n    error_reason: '',\n    audit_message: 'Duplicate lead logged',\n  },\n  valid: {\n    ...base,\n    name: 'Valid Mock Lead',\n    phone: '+1 555 010 2999',\n    phone_normalized: '15550102999',\n    dedup_key: 'phone:15550102999',\n    lead_id: 'demo_phone_15550102999',\n    is_invalid: false,\n    is_duplicate: false,\n    matched_lead_id: '',\n    duplicate_reason: '',\n    action: 'valid_lead_created',\n    status: 'valid',\n    notes: 'New valid lead',\n    error_reason: '',\n    audit_message: 'New valid lead appended',\n  },\n};\n\nconst selected = cases[TEST_CASE] || cases.invalid;\n\nreturn [{\n  json: {\n    ...selected,\n    telegram_new_message: `New qualified lead\\nName: ${telegramSafe(selected.name) || 'not provided'}\\nContact: ${telegramSafe(selected.phone_normalized) || 'no phone'} / ${telegramSafe(selected.email_normalized) || 'no email'}\\nSource: ${telegramSafe(selected.source) || 'unknown'}\\nUTM: ${telegramSafe(selected.utm_source) || 'none'}\\nAction: added to valid leads`,\n    telegram_duplicate_message: `Duplicate lead detected\\nName: ${telegramSafe(selected.name) || 'not provided'}\\nDedup key: ${telegramSafe(selected.dedup_key) || 'none'}\\nMatched lead: ${telegramSafe(selected.matched_lead_id) || 'unknown'}\\nAction: logged to duplicates`,\n    telegram_invalid_message: `Invalid lead\\nSource: ${telegramSafe(selected.source) || 'unknown'}\\nName: ${telegramSafe(selected.name) || 'not provided'}\\nReason: ${telegramSafe(selected.error_reason) || 'unknown'}\\nAction: logged to invalid leads`,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -900,
+        260
+      ],
+      "id": "test-mock-branch-input",
+      "name": "TEST - Mock branch input"
     }
   ],
-  "failure_policy": {
-    "crm_timeout": "retry 3 times, then notify manager",
-    "invalid_contact": "log to invalid leads sheet",
-    "duplicate": "update instead of create",
-    "unexpected_error": "send error summary without secrets"
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read valid_leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read valid_leads": {
+      "main": [
+        [
+          {
+            "node": "Seed valid context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed valid context": {
+      "main": [
+        [
+          {
+            "node": "Read incoming_leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read incoming_leads": {
+      "main": [
+        [
+          {
+            "node": "Process lead batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process lead batch": {
+      "main": [
+        [
+          {
+            "node": "IF invalid lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF invalid lead": {
+      "main": [
+        [
+          {
+            "node": "Append invalid_leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF duplicate lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append invalid_leads": {
+      "main": [
+        [
+          {
+            "node": "Restore invalid context after append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore invalid context after append": {
+      "main": [
+        [
+          {
+            "node": "Append invalid audit_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append invalid audit_log": {
+      "main": [
+        [
+          {
+            "node": "Restore invalid context after audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore invalid context after audit": {
+      "main": [
+        [
+          {
+            "node": "Mark invalid processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark invalid processed": {
+      "main": [
+        [
+          {
+            "node": "Restore invalid context after update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore invalid context after update": {
+      "main": [
+        [
+          {
+            "node": "Telegram invalid alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF duplicate lead": {
+      "main": [
+        [
+          {
+            "node": "Append duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append valid_leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append duplicates": {
+      "main": [
+        [
+          {
+            "node": "Restore duplicate context after append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore duplicate context after append": {
+      "main": [
+        [
+          {
+            "node": "Append duplicate audit_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append duplicate audit_log": {
+      "main": [
+        [
+          {
+            "node": "Restore duplicate context after audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore duplicate context after audit": {
+      "main": [
+        [
+          {
+            "node": "Mark duplicate processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark duplicate processed": {
+      "main": [
+        [
+          {
+            "node": "Restore duplicate context after update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore duplicate context after update": {
+      "main": [
+        [
+          {
+            "node": "Telegram duplicate alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append valid_leads": {
+      "main": [
+        [
+          {
+            "node": "Restore valid context after append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore valid context after append": {
+      "main": [
+        [
+          {
+            "node": "Append valid audit_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append valid audit_log": {
+      "main": [
+        [
+          {
+            "node": "Restore valid context after audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore valid context after audit": {
+      "main": [
+        [
+          {
+            "node": "Mark valid processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark valid processed": {
+      "main": [
+        [
+          {
+            "node": "Restore valid context after update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore valid context after update": {
+      "main": [
+        [
+          {
+            "node": "Telegram new lead alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TEST - Mock branch input": {
+      "main": [
+        [
+          {
+            "node": "IF invalid lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  "public_safety": {
-    "contains_real_credentials": false,
-    "contains_real_endpoints": false,
-    "safe_to_publish": true
-  }
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "SANITIZED_PORTFOLIO_DEMO",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "sanitized": true,
+    "notes": "Credential IDs, chat IDs, sheet IDs, and private values are placeholders. Reconnect credentials in n8n before running."
+  },
+  "tags": []
 }
+

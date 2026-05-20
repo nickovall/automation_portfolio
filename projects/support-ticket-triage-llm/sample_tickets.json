@@ -1,0 +1,130 @@
+[
+  {
+    "ticket_id": "TCK-1001",
+    "created_at": "2026-02-03T09:15:00Z",
+    "channel": "email",
+    "customer": {
+      "name": "Maya Stone",
+      "email": "maya.stone@example.com",
+      "company": "Northstar Demo Co."
+    },
+    "subject": "Charged twice for my subscription",
+    "message": "I was charged twice this month and I want the duplicate payment refunded. This is frustrating.",
+    "account_id": "acct_demo_101",
+    "order_id": "inv_demo_501",
+    "locale": "en-US",
+    "attachments_count": 1
+  },
+  {
+    "ticket_id": "TCK-1002",
+    "created_at": "2026-02-03T09:28:00Z",
+    "channel": "chat",
+    "customer": {
+      "name": "Leo Grant",
+      "email": "leo.grant@example.com",
+      "company": "Bright River Studio"
+    },
+    "subject": "Cannot log in after password reset",
+    "message": "I reset my password but the login page still says the code is expired. Please help me access my account.",
+    "account_id": "acct_demo_102",
+    "order_id": null,
+    "locale": "en-US",
+    "attachments_count": 0
+  },
+  {
+    "ticket_id": "TCK-1003",
+    "created_at": "2026-02-03T10:05:00Z",
+    "channel": "form",
+    "customer": {
+      "name": "Priya Raman",
+      "email": "priya.raman@example.com",
+      "company": "Cedar Test Labs"
+    },
+    "subject": "API returns 500 errors",
+    "message": "Our test integration has returned 500 errors for the last 20 minutes. The status page looks normal.",
+    "account_id": "acct_demo_103",
+    "order_id": null,
+    "locale": "en-US",
+    "attachments_count": 0
+  },
+  {
+    "ticket_id": "TCK-1004",
+    "created_at": "2026-02-03T10:42:00Z",
+    "channel": "email",
+    "customer": {
+      "name": "Owen Brooks",
+      "email": "owen.brooks@example.com",
+      "company": "Maple Example LLC"
+    },
+    "subject": "Delete my account",
+    "message": "Please delete my account and all stored data. I do not want to use the service anymore.",
+    "account_id": "acct_demo_104",
+    "order_id": null,
+    "locale": "en-US",
+    "attachments_count": 0
+  },
+  {
+    "ticket_id": "TCK-1005",
+    "created_at": "2026-02-03T11:10:00Z",
+    "channel": "email",
+    "customer": {
+      "name": "Nina Patel",
+      "email": "nina.patel@example.com",
+      "company": "Demo Retail Group"
+    },
+    "subject": "Question about team pricing",
+    "message": "Can you explain the price difference between the starter and team plans for 12 users?",
+    "account_id": null,
+    "order_id": null,
+    "locale": "en-US",
+    "attachments_count": 0
+  },
+  {
+    "ticket_id": "TCK-1006",
+    "created_at": "2026-02-03T11:35:00Z",
+    "channel": "social",
+    "customer": {
+      "name": "Marco Silva",
+      "email": "marco.silva@example.com",
+      "company": "Example Freight"
+    },
+    "subject": "This is unacceptable",
+    "message": "Your app broke again during our client meeting. I am angry and need a manager to contact me today.",
+    "account_id": "acct_demo_106",
+    "order_id": null,
+    "locale": "en-US",
+    "attachments_count": 0
+  },
+  {
+    "ticket_id": "TCK-1007",
+    "created_at": "2026-02-03T12:02:00Z",
+    "channel": "email",
+    "customer": {
+      "name": "Sara Young",
+      "email": "sara.young@example.com",
+      "company": "Plainfield Demo Services"
+    },
+    "subject": "Suspicious login email",
+    "message": "I received a login alert from a city I have never visited. Please secure my account.",
+    "account_id": "acct_demo_107",
+    "order_id": null,
+    "locale": "en-US",
+    "attachments_count": 1
+  },
+  {
+    "ticket_id": "TCK-1008",
+    "created_at": "2026-02-03T12:30:00Z",
+    "channel": "form",
+    "customer": {
+      "name": "Evan Lee",
+      "email": "evan.lee@example.com",
+      "company": "Example Supply Shop"
+    },
+    "subject": "Need help",
+    "message": "It is not working and I am not sure what happened.",
+    "account_id": "acct_demo_108",
+    "order_id": null,
+    "locale": "en-US",
+    "attachments_count": 0
+  }
+]

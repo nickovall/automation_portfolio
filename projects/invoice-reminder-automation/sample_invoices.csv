@@ -1,0 +1,7 @@
+invoice_id,client_name,client_email,amount,currency,issue_date,due_date,status,reminders_sent,last_reminder_at,paid_at,days_overdue,days_to_due,processed
+INV-1001,Anna Kim,anna@example.com,299,USD,2026-05-01,2026-05-22,sent,0,,,,,FALSE
+INV-1002,Max Lee,max@example.com,650000,KRW,2026-04-20,2026-05-17,overdue,1,2026-05-18,,,,FALSE
+INV-1003,Sergey Ivanov,sergey@example.com,150,USD,2026-05-03,2026-05-12,paid,0,,2026-05-10,,,FALSE
+INV-1004,Ava Kang,ava@example.com,420,USD,2026-04-15,2026-04-28,overdue,3,2026-05-15,,,,FALSE
+INV-1005,Chris Stone,,640,USD,2026-05-01,2026-05-19,sent,0,,,,,FALSE
+INV-1006,Lena Park,lena.park@example.com,310,USD,2026-05-18,2026-06-05,sent,0,,,,,FALSE

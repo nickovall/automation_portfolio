@@ -1,0 +1,80 @@
+{
+  "demo_assumption": {
+    "as_of_date": "2026-05-20",
+    "note": "Expected outputs assume the sample invoices are processed on 2026-05-20."
+  },
+  "reminders_queue": [
+    {
+      "invoice_id": "INV-1001",
+      "client_name": "Anna Kim",
+      "client_email": "anna@example.com",
+      "reminder_type": "due_soon",
+      "status": "queued_for_review",
+      "telegram_notified": "FALSE"
+    },
+    {
+      "invoice_id": "INV-1002",
+      "client_name": "Max Lee",
+      "client_email": "max@example.com",
+      "reminder_type": "overdue",
+      "status": "queued_for_review",
+      "telegram_notified": "FALSE"
+    },
+    {
+      "invoice_id": "INV-1004",
+      "client_name": "Ava Kang",
+      "client_email": "ava@example.com",
+      "reminder_type": "manager_review",
+      "status": "manager_review_required",
+      "telegram_notified": "FALSE"
+    },
+    {
+      "invoice_id": "INV-1005",
+      "client_name": "Chris Stone",
+      "client_email": "",
+      "reminder_type": "invalid_contact",
+      "status": "manager_review_required",
+      "telegram_notified": "FALSE"
+    }
+  ],
+  "payment_status_log": [
+    {
+      "invoice_id": "INV-1001",
+      "old_status": "sent",
+      "new_status": "sent",
+      "source": "n8n_invoice_reminder",
+      "notes": "Reminder draft queued: due_soon"
+    },
+    {
+      "invoice_id": "INV-1002",
+      "old_status": "overdue",
+      "new_status": "overdue",
+      "source": "n8n_invoice_reminder",
+      "notes": "Reminder draft queued: overdue"
+    },
+    {
+      "invoice_id": "INV-1004",
+      "old_status": "overdue",
+      "new_status": "escalated",
+      "source": "n8n_invoice_reminder",
+      "notes": "Invoice routed to manager review: severe_overdue_or_reminder_limit_reached"
+    },
+    {
+      "invoice_id": "INV-1005",
+      "old_status": "sent",
+      "new_status": "review_required",
+      "source": "n8n_invoice_reminder",
+      "notes": "Invoice routed to manager review: missing_client_email"
+    }
+  ],
+  "skipped_invoices": [
+    {
+      "invoice_id": "INV-1003",
+      "reason": "paid_or_closed"
+    },
+    {
+      "invoice_id": "INV-1006",
+      "reason": "not_due_yet"
+    }
+  ]
+}

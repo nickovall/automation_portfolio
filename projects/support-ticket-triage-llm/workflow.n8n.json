@@ -1,0 +1,1520 @@
+{
+  "name": "Support Ticket Triage with LLM - Google Sheets Demo",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1696,
+        0
+      ],
+      "id": "manual-trigger",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "incoming_tickets",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1488,
+        0
+      ],
+      "id": "read-incoming-tickets",
+      "name": "Read incoming_tickets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Change this value to test another branch: refund, account_access, technical, account_deletion, sales, complaint, security, unclear.\nconst TEST_CASE = 'sales';\n\nconst cases = {\n  refund: ['TCK-MOCK-REFUND', 'email', 'Charged twice for my subscription', 'I was charged twice this month and I want the duplicate payment refunded. This is frustrating.'],\n  account_access: ['TCK-MOCK-LOGIN', 'chat', 'Cannot log in after password reset', 'I reset my password but the login page still says the code is expired. Please help me access my account.'],\n  technical: ['TCK-MOCK-API', 'form', 'API returns 500 errors', 'Our test integration has returned 500 errors for the last 20 minutes. The status page looks normal.'],\n  account_deletion: ['TCK-MOCK-DELETE', 'email', 'Delete my account', 'Please delete my account and all stored data. I do not want to use the service anymore.'],\n  sales: ['TCK-MOCK-SALES', 'email', 'Question about team pricing', 'Can you explain the price difference between starter and team plans for 12 users?'],\n  complaint: ['TCK-MOCK-COMPLAINT', 'social', 'This is unacceptable', 'Your app broke again during our client meeting. I am angry and need a manager to contact me today.'],\n  security: ['TCK-MOCK-SECURITY', 'email', 'Suspicious login email', 'I received a login alert from a city I have never visited. Please secure my account.'],\n  unclear: ['TCK-MOCK-UNCLEAR', 'form', 'Need help', 'It is not working and I am not sure what happened.'],\n};\n\nconst selected = cases[TEST_CASE] || cases.refund;\n\nreturn [{\n  json: {\n    ticket_id: selected[0],\n    created_at: '2026-05-19T10:00:00Z',\n    customer_name: 'Mock Customer',\n    customer_email: 'mock.customer@example.com',\n    subject: selected[2],\n    message: selected[3],\n    channel: selected[1],\n    status: 'new',\n    processed: '',\n    account_id: 'acct_mock_001',\n    order_id: 'order_mock_001',\n    locale: 'en-US',\n    attachments_count: 0,\n    row_number: 2,\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2112,
+        128
+      ],
+      "id": "test-mock-ticket-input",
+      "name": "TEST - Mock ticket input"
+    },
+    {
+      "parameters": {
+        "jsCode": "const isProcessed = (value) => {\n  if (value === true) return true;\n  const normalized = String(value ?? '').trim().toLowerCase();\n  return ['true', 'yes', '1', 'processed', 'done'].includes(normalized);\n};\n\nconst text = (value) => String(value ?? '').trim();\nconst nowIso = () => new Date().toISOString();\nconst safeCompact = (value) => text(value).replace(/\\s+/g, ' ').slice(0, 5000);\nconst hasAnyTicketSignal = (row) => ['ticket_id', 'created_at', 'channel', 'subject', 'message', 'customer_name', 'customer_email']\n  .some((field) => text(row[field]));\n\nconst required = ['ticket_id', 'created_at', 'channel', 'subject', 'message'];\nconst out = [];\nlet skippedProcessed = 0;\nlet skippedEmpty = 0;\n\nfor (const [index, item] of items.entries()) {\n  const row = item.json || {};\n\n  if (!hasAnyTicketSignal(row)) {\n    skippedEmpty += 1;\n    continue;\n  }\n\n  if (isProcessed(row.processed)) {\n    skippedProcessed += 1;\n    continue;\n  }\n\n  const customer = row.customer || {};\n  const ticket = {\n    ticket_id: text(row.ticket_id),\n    created_at: text(row.created_at),\n    channel: text(row.channel),\n    customer_name: text(row.customer_name || customer.name),\n    customer_email: text(row.customer_email || customer.email),\n    subject: safeCompact(row.subject),\n    message: safeCompact(row.message),\n    account_id: text(row.account_id),\n    order_id: text(row.order_id),\n    locale: text(row.locale || 'en-US'),\n    attachments_count: Number(row.attachments_count || 0),\n    source_row_number: row.row_number ?? row.rowNumber ?? row.__rowNumber ?? row._rowNumber ?? index + 2,\n  };\n\n  const validationErrors = [];\n  for (const field of required) {\n    if (!ticket[field]) validationErrors.push(`missing_${field}`);\n  }\n\n  const llmPayload = {\n    ticket_id: ticket.ticket_id,\n    created_at: ticket.created_at,\n    channel: ticket.channel,\n    subject: ticket.subject,\n    message: ticket.message,\n    account_id: ticket.account_id,\n    order_id: ticket.order_id,\n    locale: ticket.locale,\n    attachments_count: ticket.attachments_count,\n  };\n\n  out.push({\n    json: {\n      ...ticket,\n      has_work: true,\n      processed_at: nowIso(),\n      input_valid: validationErrors.length === 0,\n      validation_errors: validationErrors,\n      source_items_count: items.length,\n      skipped_processed_count: skippedProcessed,\n      skipped_empty_count: skippedEmpty,\n      llm_payload: llmPayload,\n      llm_prompt: `Classify this support ticket and return strict JSON only. Ticket: ${JSON.stringify(llmPayload)}`,\n    },\n  });\n}\n\nif (out.length === 0) {\n  return [{\n    json: {\n      has_work: false,\n      control_event: 'no_unprocessed_tickets',\n      reason: 'No unprocessed support tickets were found.',\n      source_items_count: items.length,\n      skipped_processed_count: skippedProcessed,\n      skipped_empty_count: skippedEmpty,\n      checked_at: nowIso(),\n    },\n  }];\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1248,
+        0
+      ],
+      "id": "prepare-ticket-batch",
+      "name": "Prepare ticket batch"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lower = (value) => String(value ?? '').toLowerCase();\nconst contains = (text, words) => words.some((word) => text.includes(word));\n\nfunction classify(ticket) {\n  const text = `${lower(ticket.subject)} ${lower(ticket.message)}`;\n  let output = {\n    category: 'other',\n    priority: 'normal',\n    sentiment: 'neutral',\n    summary: 'Customer needs support review.',\n    routing_team: 'support_lead',\n    needs_human_review: false,\n    risk_flags: [],\n    draft_reply: 'Thanks for contacting us. A support team member will review your message and follow up.',\n    confidence: 0.78,\n  };\n\n  if (contains(text, ['charged twice', 'refund', 'duplicate payment', 'payment refunded'])) {\n    output = {\n      category: 'refund_request', priority: 'high', sentiment: contains(text, ['frustrating', 'angry', 'unacceptable']) ? 'angry' : 'worried',\n      summary: 'Customer reports a duplicate charge and asks for refund review.', routing_team: 'billing', needs_human_review: true,\n      risk_flags: ['refund', 'payment_issue'], draft_reply: 'Thanks for reporting this. I have prepared your payment issue for billing review before any refund action is taken.', confidence: 0.9,\n    };\n  } else if (contains(text, ['log in', 'login', 'password reset', 'code is expired', 'access my account'])) {\n    output = {\n      category: 'account_access', priority: 'high', sentiment: 'worried', summary: 'Customer cannot access the account after a password reset issue.',\n      routing_team: 'account_support', needs_human_review: false, risk_flags: [], draft_reply: 'Thanks for the details. I have routed this to account support so the reset issue can be checked.', confidence: 0.88,\n    };\n  } else if (contains(text, ['500', 'api', 'outage', 'errors', 'status page'])) {\n    output = {\n      category: 'technical_issue', priority: 'urgent', sentiment: 'worried', summary: 'Customer reports repeated API errors while the status page appears normal.',\n      routing_team: 'technical_support', needs_human_review: false, risk_flags: [], draft_reply: 'Thanks for reporting the API errors. I have routed this to technical support with the timing you provided.', confidence: 0.86,\n    };\n  } else if (contains(text, ['delete my account', 'delete account', 'stored data', 'do not want to use'])) {\n    output = {\n      category: 'cancellation', priority: 'high', sentiment: 'neutral', summary: 'Customer requests account deletion and removal of stored data.',\n      routing_team: 'support_lead', needs_human_review: true, risk_flags: ['account_deletion', 'cancellation'], draft_reply: 'Thanks for contacting us. I have prepared your account deletion request for human review so the team can confirm the correct process.', confidence: 0.91,\n    };\n  } else if (contains(text, ['pricing', 'price difference', 'team plans', 'starter'])) {\n    output = {\n      category: 'sales_question', priority: 'normal', sentiment: 'neutral', summary: 'Customer asks about pricing or plan differences.',\n      routing_team: 'sales', needs_human_review: false, risk_flags: [], draft_reply: 'Thanks for your interest. I have routed your pricing question to the sales team.', confidence: 0.92,\n    };\n  } else if (contains(text, ['unacceptable', 'angry', 'manager', 'client meeting'])) {\n    output = {\n      category: 'complaint', priority: 'urgent', sentiment: 'angry', summary: 'Customer is angry about a service failure and asks for manager contact.',\n      routing_team: 'support_lead', needs_human_review: true, risk_flags: ['angry_customer', 'manager_requested'], draft_reply: 'I am sorry this happened. I have escalated your message for manager review so the team can follow up with the right context.', confidence: 0.89,\n    };\n  } else if (contains(text, ['suspicious login', 'secure my account', 'never visited', 'login alert'])) {\n    output = {\n      category: 'account_access', priority: 'urgent', sentiment: 'worried', summary: 'Customer reports a suspicious login alert and asks to secure the account.',\n      routing_team: 'account_support', needs_human_review: true, risk_flags: ['security_issue'], draft_reply: 'Thanks for reporting the suspicious login alert. I have escalated this for account security review.', confidence: 0.93,\n    };\n  } else if (contains(text, ['not working', 'not sure what happened', 'need help'])) {\n    output = {\n      category: 'other', priority: 'normal', sentiment: 'unclear', summary: 'Customer says something is not working but does not provide enough detail.',\n      routing_team: 'support_lead', needs_human_review: true, risk_flags: ['unclear_intent'], draft_reply: 'Thanks for reaching out. Could you share what you were trying to do, what happened, and any error message you saw?', confidence: 0.61,\n    };\n  }\n\n  return output;\n}\n\nreturn items.map((item) => ({\n  json: {\n    ...item.json,\n    llm_provider: 'mock_demo_classifier',\n    llm_response_text: JSON.stringify(classify(item.json)),\n  },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        240
+      ],
+      "id": "mock-llm-classification",
+      "name": "Mock LLM classification"
+    },
+    {
+      "parameters": {
+        "jsCode": "const allowed = {\n  category: ['billing', 'technical_issue', 'account_access', 'refund_request', 'cancellation', 'sales_question', 'complaint', 'other'],\n  priority: ['low', 'normal', 'high', 'urgent'],\n  sentiment: ['positive', 'neutral', 'worried', 'angry', 'unclear'],\n  routing_team: ['billing', 'technical_support', 'account_support', 'sales', 'support_lead'],\n  risk_flags: ['refund', 'payment_issue', 'account_deletion', 'legal_threat', 'security_issue', 'angry_customer', 'unclear_intent', 'low_llm_confidence', 'cancellation', 'manager_requested'],\n};\nconst threshold = 0.75;\nconst text = (value) => String(value ?? '').trim();\nconst safeTelegram = (value) => text(value).replace(/[\\u0000-\\u001F\\u007F]/g, ' ').replace(/[<>*_`\\[\\]()~#+\\-=|{}.!]/g, ' ').replace(/\\s+/g, ' ').slice(0, 700);\n\nconst fallback = (ticket, reason) => ({\n  category: 'other', priority: 'high', sentiment: 'unclear', summary: 'Ticket requires manual triage because automated classification was not reliable.',\n  routing_team: 'support_lead', needs_human_review: true, risk_flags: ['unclear_intent', 'low_llm_confidence'],\n  draft_reply: 'Thanks for contacting us. A support team member will review your message and follow up.', confidence: 0,\n  validation_status: 'fallback', fallback_reason: reason,\n});\n\nfunction normalizeFlags(flags) {\n  const output = [];\n  for (const flag of Array.isArray(flags) ? flags : []) {\n    const normalized = text(flag);\n    if (allowed.risk_flags.includes(normalized) && !output.includes(normalized)) output.push(normalized);\n  }\n  return output;\n}\n\nfunction validateObject(obj) {\n  const errors = [];\n  for (const field of ['category', 'priority', 'sentiment', 'summary', 'routing_team', 'needs_human_review', 'risk_flags', 'draft_reply', 'confidence']) {\n    if (!(field in obj)) errors.push(`missing_${field}`);\n  }\n  if (!allowed.category.includes(obj.category)) errors.push('invalid_category');\n  if (!allowed.priority.includes(obj.priority)) errors.push('invalid_priority');\n  if (!allowed.sentiment.includes(obj.sentiment)) errors.push('invalid_sentiment');\n  if (!allowed.routing_team.includes(obj.routing_team)) errors.push('invalid_routing_team');\n  if (typeof obj.needs_human_review !== 'boolean') errors.push('invalid_needs_human_review');\n  if (!Array.isArray(obj.risk_flags)) errors.push('invalid_risk_flags');\n  if (typeof Number(obj.confidence) !== 'number' || Number.isNaN(Number(obj.confidence)) || Number(obj.confidence) < 0 || Number(obj.confidence) > 1) errors.push('invalid_confidence');\n  return errors;\n}\n\nreturn items.map((item) => {\n  const ticket = item.json;\n  let parsed;\n  let parseError = '';\n\n  if (!ticket.input_valid) {\n    parsed = fallback(ticket, `invalid_input:${(ticket.validation_errors || []).join(',')}`);\n  } else {\n    try {\n      parsed = JSON.parse(text(ticket.llm_response_text));\n    } catch (error) {\n      parseError = error.message;\n      parsed = fallback(ticket, 'invalid_llm_json');\n    }\n\n    const schemaErrors = parsed.validation_status === 'fallback' ? [] : validateObject(parsed);\n    if (schemaErrors.length) parsed = fallback(ticket, `schema_error:${schemaErrors.join(',')}`);\n  }\n\n  const flags = new Set(normalizeFlags(parsed.risk_flags));\n  const content = `${ticket.subject} ${ticket.message}`.toLowerCase();\n  if (parsed.category === 'refund_request' || content.includes('refund')) flags.add('refund');\n  if (content.includes('payment') || content.includes('charged') || content.includes('billing')) flags.add('payment_issue');\n  if (content.includes('delete my account') || content.includes('delete account') || content.includes('stored data')) flags.add('account_deletion');\n  if (content.includes('legal') || content.includes('lawyer') || content.includes('sue')) flags.add('legal_threat');\n  if (content.includes('suspicious login') || content.includes('secure my account') || content.includes('security')) flags.add('security_issue');\n  if (parsed.sentiment === 'angry' || content.includes('angry') || content.includes('unacceptable')) flags.add('angry_customer');\n  if (parsed.sentiment === 'unclear' || parsed.category === 'other') flags.add('unclear_intent');\n  if (parsed.category === 'cancellation') flags.add('cancellation');\n  if (Number(parsed.confidence) < threshold) flags.add('low_llm_confidence');\n\n  const riskyFlags = ['refund', 'payment_issue', 'account_deletion', 'legal_threat', 'security_issue', 'angry_customer', 'unclear_intent', 'low_llm_confidence', 'cancellation'];\n  const needsHumanReview = Boolean(parsed.needs_human_review) || [...flags].some((flag) => riskyFlags.includes(flag));\n  const reviewQueueRequired = needsHumanReview || ['high', 'urgent'].includes(parsed.priority);\n  const riskFlags = [...flags];\n  const reviewReason = reviewQueueRequired ? (riskFlags.length ? riskFlags.join(', ') : `priority_${parsed.priority}`) : '';\n  const status = reviewQueueRequired ? 'human_review_required' : 'triaged';\n\n  return {\n    json: {\n      ...ticket,\n      category: parsed.category,\n      priority: parsed.priority,\n      sentiment: parsed.sentiment,\n      summary: text(parsed.summary),\n      routing_team: parsed.routing_team,\n      needs_human_review: needsHumanReview,\n      review_queue_required: reviewQueueRequired,\n      risk_flags: riskFlags,\n      risk_flags_text: riskFlags.join(', '),\n      draft_reply: text(parsed.draft_reply),\n      confidence: Number(parsed.confidence),\n      status,\n      review_reason: reviewReason,\n      validation_status: parsed.validation_status || 'valid_llm_json',\n      fallback_reason: parsed.fallback_reason || parseError,\n      audit_message: reviewQueueRequired ? `Ticket routed for review: ${reviewReason || parsed.priority}` : `Ticket triaged to ${parsed.routing_team}`,\n      telegram_review_message: `Support ticket needs review\\nTicket: ${safeTelegram(ticket.ticket_id)}\\nPriority: ${safeTelegram(parsed.priority)}\\nCategory: ${safeTelegram(parsed.category)}\\nRisk flags: ${safeTelegram(riskFlags.join(', ') || 'none')}\\nSummary: ${safeTelegram(parsed.summary)}\\nDraft reply: ${safeTelegram(parsed.draft_reply)}`,\n    },\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        0
+      ],
+      "id": "validate-llm-json-and-apply-safety-rules",
+      "name": "Validate LLM JSON and apply safety rules"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-review-queue-required-condition",
+              "leftValue": "={{ $json.review_queue_required }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        192,
+        0
+      ],
+      "id": "if-review-queue-required",
+      "name": "IF review queue required"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "triaged_tickets",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "triaged_at": "={{ $json.processed_at }}",
+            "ticket_id": "={{ $json.ticket_id }}",
+            "category": "={{ $json.category }}",
+            "priority": "={{ $json.priority }}",
+            "sentiment": "={{ $json.sentiment }}",
+            "routing_team": "={{ $json.routing_team }}",
+            "needs_human_review": "={{ $json.needs_human_review }}",
+            "risk_flags": "={{ $json.risk_flags_text }}",
+            "confidence": "={{ $json.confidence }}",
+            "summary": "={{ $json.summary }}",
+            "draft_reply": "={{ $json.draft_reply }}",
+            "source_row": "={{ $json.source_row_number }}",
+            "telegram_notified": "={{ $json.review_queue_required ? \"TRUE\" : \"FALSE\" }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "triaged_at",
+              "displayName": "triaged_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sentiment",
+              "displayName": "sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "routing_team",
+              "displayName": "routing_team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "needs_human_review",
+              "displayName": "needs_human_review",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_flags",
+              "displayName": "risk_flags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "draft_reply",
+              "displayName": "draft_reply",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegram_notified",
+              "displayName": "telegram_notified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1744,
+        -208
+      ],
+      "id": "append-triaged-tickets-review",
+      "name": "Append triaged_tickets (review)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF review queue required', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        -208
+      ],
+      "id": "restore-review-context-after-triage",
+      "name": "Restore review context after triage"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "human_review_queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "created_at": "={{ $json.processed_at }}",
+            "ticket_id": "={{ $json.ticket_id }}",
+            "priority": "={{ $json.priority }}",
+            "risk_flags": "={{ $json.risk_flags_text }}",
+            "summary": "={{ $json.summary }}",
+            "draft_reply": "={{ $json.draft_reply }}",
+            "review_status": "open",
+            "review_owner": "={{ $json.routing_team }}",
+            "telegram_message_id": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_flags",
+              "displayName": "risk_flags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "draft_reply",
+              "displayName": "draft_reply",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "review_status",
+              "displayName": "review_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "review_owner",
+              "displayName": "review_owner",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegram_message_id",
+              "displayName": "telegram_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1264,
+        -208
+      ],
+      "id": "append-human-review-queue",
+      "name": "Append human_review_queue",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF review queue required', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        -208
+      ],
+      "id": "restore-review-context-after-queue",
+      "name": "Restore review context after queue"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "audit_log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.processed_at }}",
+            "workflow_name": "Support Ticket Triage with LLM",
+            "source_sheet": "incoming_tickets",
+            "source_row": "={{ $json.source_row_number }}",
+            "entity_id": "={{ $json.ticket_id }}",
+            "event_type": "ticket_triaged_review",
+            "status": "={{ $json.status }}",
+            "message": "={{ $json.audit_message }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_sheet",
+              "displayName": "source_sheet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "entity_id",
+              "displayName": "entity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -784,
+        -208
+      ],
+      "id": "append-review-audit-log",
+      "name": "Append review audit_log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF review queue required', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        -208
+      ],
+      "id": "restore-review-context-after-audit",
+      "name": "Restore review context after audit"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "incoming_tickets",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.source_row_number }}",
+            "status": "review_required",
+            "processed": "TRUE"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processed",
+              "displayName": "processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -304,
+        -208
+      ],
+      "id": "mark-review-processed",
+      "name": "Mark review processed",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF review queue required', 0);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        -208
+      ],
+      "id": "restore-review-context-after-update",
+      "name": "Restore review context after update"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.TRIAGEPILOT_CHAT_ID }}",
+        "text": "={{ $json.telegram_review_message }}",
+        "additionalFields": {
+          "disableWebPagePreview": true
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        176,
+        -208
+      ],
+      "id": "telegram-review-alert",
+      "name": "Telegram review alert",
+      "credentials": {
+        "telegramApi": {
+          "id": "CRED_ID",
+          "name": "TG_PORTFOLIO_TRIAGEPILOT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "triaged_tickets",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "triaged_at": "={{ $json.processed_at }}",
+            "ticket_id": "={{ $json.ticket_id }}",
+            "category": "={{ $json.category }}",
+            "priority": "={{ $json.priority }}",
+            "sentiment": "={{ $json.sentiment }}",
+            "routing_team": "={{ $json.routing_team }}",
+            "needs_human_review": "={{ $json.needs_human_review }}",
+            "risk_flags": "={{ $json.risk_flags_text }}",
+            "confidence": "={{ $json.confidence }}",
+            "summary": "={{ $json.summary }}",
+            "draft_reply": "={{ $json.draft_reply }}",
+            "source_row": "={{ $json.source_row_number }}",
+            "telegram_notified": "={{ $json.review_queue_required ? \"TRUE\" : \"FALSE\" }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "triaged_at",
+              "displayName": "triaged_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ticket_id",
+              "displayName": "ticket_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sentiment",
+              "displayName": "sentiment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "routing_team",
+              "displayName": "routing_team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "needs_human_review",
+              "displayName": "needs_human_review",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "risk_flags",
+              "displayName": "risk_flags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "draft_reply",
+              "displayName": "draft_reply",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegram_notified",
+              "displayName": "telegram_notified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1536,
+        320
+      ],
+      "id": "append-triaged-tickets-standard",
+      "name": "Append triaged_tickets (standard)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF review queue required', 1);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        320
+      ],
+      "id": "restore-standard-context-after-triage",
+      "name": "Restore standard context after triage"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "audit_log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.processed_at }}",
+            "workflow_name": "Support Ticket Triage with LLM",
+            "source_sheet": "incoming_tickets",
+            "source_row": "={{ $json.source_row_number }}",
+            "entity_id": "={{ $json.ticket_id }}",
+            "event_type": "ticket_triaged",
+            "status": "={{ $json.status }}",
+            "message": "={{ $json.audit_message }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_sheet",
+              "displayName": "source_sheet",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_row",
+              "displayName": "source_row",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "entity_id",
+              "displayName": "entity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "event_type",
+              "displayName": "event_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1056,
+        320
+      ],
+      "id": "append-standard-audit-log",
+      "name": "Append standard audit_log",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sourceItems = $items('IF review queue required', 1);\nreturn items.map((item, index) => ({\n  json: sourceItems[index]?.json || item.json,\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        320
+      ],
+      "id": "restore-standard-context-after-audit",
+      "name": "Restore standard context after audit"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "support_triage",
+          "mode": "list",
+          "cachedResultName": "support_triage"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "incoming_tickets",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.source_row_number }}",
+            "status": "triaged",
+            "processed": "TRUE"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processed",
+              "displayName": "processed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -576,
+        320
+      ],
+      "id": "mark-standard-processed",
+      "name": "Mark standard processed",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CRED_ID",
+          "name": "GSHEETS_PORTFOLIO_AUTOMATION"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "Sanitized portfolio demo. Main path uses a DeepSeek HTTP Request node with a private n8n credential. Credential IDs, API keys, chat IDs, and sheet IDs are not included. Mock LLM classification remains in the canvas as a disconnected branch-test helper. Customer replies are drafts only.",
+        "height": 220,
+        "width": 420
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1376,
+        -544
+      ],
+      "id": "llm-demo-note",
+      "name": "LLM setup note"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const SYSTEM_MESSAGE = `You are a support ticket triage assistant. You classify incoming customer support tickets and produce safe draft replies for a human support team.\n\nRules:\n- Return JSON only.\n- Do not include Markdown.\n- Do not include explanations outside the JSON object.\n- Use only the allowed categories, priorities, sentiments, routing teams, and risk flags.\n- Do not promise refunds, cancellations, account deletion, compensation, legal outcomes, or security conclusions.\n- Do not ask for passwords, full payment card numbers, secret keys, or private tokens.\n- The draft reply is only for human review and must not claim that an action has already been completed.\n- If intent is unclear, choose other, set needs_human_review to true, include unclear_intent, and use confidence below 0.75.\n\nAllowed categories: billing, technical_issue, account_access, refund_request, cancellation, sales_question, complaint, other.\nAllowed priorities: low, normal, high, urgent.\nAllowed sentiments: positive, neutral, worried, angry, unclear.\nAllowed routing teams: billing, technical_support, account_support, sales, support_lead.\nAllowed risk flags: refund, payment_issue, account_deletion, legal_threat, security_issue, angry_customer, unclear_intent, low_llm_confidence, cancellation, manager_requested.`;\n\nconst schemaExample = {\n  category: 'billing',\n  priority: 'high',\n  sentiment: 'angry',\n  summary: 'Customer was charged twice and asks for refund.',\n  routing_team: 'billing',\n  needs_human_review: true,\n  risk_flags: ['refund', 'angry_customer'],\n  draft_reply: 'Short safe draft reply for human review.',\n  confidence: 0.86,\n};\n\nreturn items.map((item) => {\n  const ticket = item.json || {};\n  const payload = ticket.llm_payload || {\n    ticket_id: ticket.ticket_id,\n    created_at: ticket.created_at,\n    channel: ticket.channel,\n    subject: ticket.subject,\n    message: ticket.message,\n    account_id: ticket.account_id,\n    order_id: ticket.order_id,\n    locale: ticket.locale,\n    attachments_count: ticket.attachments_count,\n  };\n\n  const userMessage = [\n    'Classify this support ticket.',\n    '',\n    'Ticket JSON:',\n    JSON.stringify(payload, null, 2),\n    '',\n    'Escalation rules: needs_human_review must be true for refund request, angry customer, payment issue, account deletion, legal threat, security issue, unclear intent, cancellation request, or confidence below 0.75.',\n    '',\n    'Return exactly one JSON object using this schema:',\n    JSON.stringify(schemaExample, null, 2),\n  ].join('\\n');\n\n  return {\n    json: {\n      ...ticket,\n      llm_provider: 'deepseek',\n      llm_model: 'deepseek-chat',\n      deepseek_request_body: {\n        model: 'deepseek-chat',\n        temperature: 0.1,\n        max_tokens: 800,\n        response_format: { type: 'json_object' },\n        messages: [\n          { role: 'system', content: SYSTEM_MESSAGE },\n          { role: 'user', content: userMessage },\n        ],\n      },\n    },\n  };\n});"
+      },
+      "id": "563737b3-e836-4276-937b-b0110e3b03e2",
+      "name": "Build DeepSeek request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.deepseek.com/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "deepSeekApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.deepseek_request_body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "id": "1109e311-ee79-4af7-b334-fcd053f04adc",
+      "name": "DeepSeek classify ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -528,
+        0
+      ],
+      "credentials": {
+        "deepSeekApi": {
+          "id": "CRED_ID",
+          "name": "DeepSeek account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const requestItems = $('Build DeepSeek request').all();\nconst text = (value) => String(value ?? '').trim();\n\nfunction parseBody(value) {\n  if (typeof value !== 'string') return value;\n  try {\n    return JSON.parse(value);\n  } catch (_) {\n    return value;\n  }\n}\n\nfunction cleanModelText(value) {\n  let output = text(value);\n  output = output.replace(/^```json\\s*/i, '').replace(/^```\\s*/i, '').replace(/```$/i, '').trim();\n  return output;\n}\n\nreturn items.map((item, index) => {\n  const original = requestItems[index]?.json || {};\n  const response = item.json || {};\n  const statusCode = Number(response.statusCode || response.status || 200);\n  const body = parseBody(response.body ?? response);\n  const apiError = body?.error?.message || body?.message || response.error || '';\n  const content = cleanModelText(body?.choices?.[0]?.message?.content || body?.choices?.[0]?.text || '');\n  const ok = statusCode >= 200 && statusCode < 300 && content;\n\n  return {\n    json: {\n      ...original,\n      llm_provider: 'deepseek',\n      llm_model: original.llm_model || 'deepseek-chat',\n      llm_http_status: statusCode,\n      llm_response_text: ok ? content : '',\n      llm_error: ok ? '' : text(apiError || `DeepSeek returned no usable content, status ${statusCode}`),\n    },\n  };\n});"
+      },
+      "id": "12c65161-8210-4d94-930e-f3fc80648a39",
+      "name": "Normalize DeepSeek response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-tickets-to-process-condition",
+              "leftValue": "={{ $json.has_work }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "83ccc22c-8404-4dbe-b646-38133ba466fc",
+      "name": "IF tickets to process?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1008,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a97edae4-855e-476d-a73a-1a750316e715",
+      "name": "No unprocessed tickets",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        192
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read incoming_tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read incoming_tickets": {
+      "main": [
+        [
+          {
+            "node": "Prepare ticket batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TEST - Mock ticket input": {
+      "main": [
+        [
+          {
+            "node": "Prepare ticket batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare ticket batch": {
+      "main": [
+        [
+          {
+            "node": "IF tickets to process?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate LLM JSON and apply safety rules": {
+      "main": [
+        [
+          {
+            "node": "IF review queue required",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF review queue required": {
+      "main": [
+        [
+          {
+            "node": "Append triaged_tickets (review)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append triaged_tickets (standard)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append triaged_tickets (review)": {
+      "main": [
+        [
+          {
+            "node": "Restore review context after triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore review context after triage": {
+      "main": [
+        [
+          {
+            "node": "Append human_review_queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append human_review_queue": {
+      "main": [
+        [
+          {
+            "node": "Restore review context after queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore review context after queue": {
+      "main": [
+        [
+          {
+            "node": "Append review audit_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append review audit_log": {
+      "main": [
+        [
+          {
+            "node": "Restore review context after audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore review context after audit": {
+      "main": [
+        [
+          {
+            "node": "Mark review processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark review processed": {
+      "main": [
+        [
+          {
+            "node": "Restore review context after update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore review context after update": {
+      "main": [
+        [
+          {
+            "node": "Telegram review alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append triaged_tickets (standard)": {
+      "main": [
+        [
+          {
+            "node": "Restore standard context after triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore standard context after triage": {
+      "main": [
+        [
+          {
+            "node": "Append standard audit_log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append standard audit_log": {
+      "main": [
+        [
+          {
+            "node": "Restore standard context after audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore standard context after audit": {
+      "main": [
+        [
+          {
+            "node": "Mark standard processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build DeepSeek request": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek classify ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek classify ticket": {
+      "main": [
+        [
+          {
+            "node": "Normalize DeepSeek response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize DeepSeek response": {
+      "main": [
+        [
+          {
+            "node": "Validate LLM JSON and apply safety rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF tickets to process?": {
+      "main": [
+        [
+          {
+            "node": "Build DeepSeek request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No unprocessed tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "SANITIZED_PORTFOLIO_DEMO",
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "sanitized": true,
+    "notes": "Credential IDs, chat IDs, sheet IDs, LLM API keys, and private values are placeholders. Reconnect credentials and replace the mock LLM node before real use."
+  },
+  "tags": []
+}
